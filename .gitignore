@@ -1,0 +1,25 @@
+node_modules/
+dist/
+dev-dist/
+uploads/
+.env
+*.log
+.DS_Store
+docker-compose.override.yml
+
+# Variantes de .env (solo se suben los .env.example)
+.env.*
+!.env.example
+backend/.env
+
+# Respaldos y datos reales: fotos de residentes, dumps de la BD
+fotos-backup/
+backups/
+*.dump
+*.sql.gz
+*.backup
+
+# Llaves y certificados
+*.pem
+*.key
+id_*

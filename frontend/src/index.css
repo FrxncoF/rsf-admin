@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/*
+ * Paleta tomada del logo de Residencia San Francisco:
+ *   brand  = azul de la mano (#2872B8) → acciones principales, navegación, foco
+ *   accent = verde de la figura (#9CC410) → estados positivos, destacados, detalles
+ * El verde no tiene contraste suficiente con texto blanco: úsalo como fondo claro
+ * (accent-50/100) con texto accent-700/800, o como acento decorativo.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --color-brand-50: #eef5fc;
+  --color-brand-100: #d8e8f7;
+  --color-brand-200: #b3d1ee;
+  --color-brand-300: #84b4e2;
+  --color-brand-400: #5394d3;
+  --color-brand-500: #3581c7;
+  --color-brand-600: #2872b8;
+  --color-brand-700: #215d97;
+  --color-brand-800: #1c4c7a;
+  --color-brand-900: #183f64;
+
+  --color-accent-50: #f6fbe7;
+  --color-accent-100: #ebf5c8;
+  --color-accent-200: #d8ec94;
+  --color-accent-300: #c0df55;
+  --color-accent-400: #abd12a;
+  --color-accent-500: #9cc410;
+  --color-accent-600: #7e9f0c;
+  --color-accent-700: #607a0c;
+  --color-accent-800: #4c600f;
+  --color-accent-900: #3f5011;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
