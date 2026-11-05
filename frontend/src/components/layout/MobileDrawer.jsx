@@ -26,7 +26,7 @@ export function MobileDrawer({ open, onClose }) {
         aria-modal="true"
         aria-label="Menú"
       >
-        <SidebarContent onNavigate={onClose} onClose={onClose} />
+        <SidebarContent onNavigate={onClose} onClose={onClose} showUf />
       </aside>
     </div>
   );

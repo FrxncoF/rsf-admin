@@ -8,6 +8,9 @@ import { pool } from './db/pool.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { residentsRouter } from './modules/residents/residents.routes.js';
 import { usersRouter } from './modules/users/users.routes.js';
+import { guardiansRouter } from './modules/guardians/guardians.routes.js';
+import { sitesRouter } from './modules/sites/sites.routes.js';
+import { indicatorsRouter } from './modules/indicators/indicators.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 export function createApp() {
@@ -38,6 +41,9 @@ export function createApp() {
   api.use('/auth', authRouter);
   api.use('/residents', residentsRouter);
   api.use('/users', usersRouter);
+  api.use('/guardians', guardiansRouter);
+  api.use('/sites', sitesRouter);
+  api.use('/indicators', indicatorsRouter);
 
   app.use('/api', api);
   app.use(notFoundHandler);

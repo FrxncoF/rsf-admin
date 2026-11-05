@@ -11,6 +11,8 @@ import { useDebouncedValue } from '@/lib/hooks';
 import { formatRut } from '@/lib/rut';
 import { formatPhone } from '@/lib/phone';
 import { ageFrom, formatDate } from '@/lib/utils';
+import { useSites } from '@/features/sites/SiteContext';
+import { dependencyOf } from '../constants';
 import { residentsApi } from '../residentsApi';
 import { useResidents } from '../useResidents';
 import { ResidentAvatar } from '../ResidentAvatar';
@@ -24,11 +26,13 @@ export default function AdminResidentsView() {
   const [sort, setSort] = useState('name');
   const [page, setPage] = useState(1);
   const debouncedSearch = useDebouncedValue(search);
+  const { siteId, currentSite } = useSites();
 
-  useEffect(() => setPage(1), [debouncedSearch, status, sort]);
+  useEffect(() => setPage(1), [debouncedSearch, status, sort, siteId]);
 
   const { data, meta, loading, error, reload } = useResidents({
     search: debouncedSearch,
+    site_id: siteId,
     status,
     sort,
     page,
@@ -103,6 +107,7 @@ export default function AdminResidentsView() {
           <h1 className="text-2xl font-semibold text-slate-900">Residentes</h1>
           <p className="mt-1 text-sm text-slate-500">
             {meta ? `${meta.total} residente${meta.total === 1 ? '' : 's'}` : 'Gestión de residentes'}
+            {currentSite ? ` · Sede ${currentSite.name}` : ' · Todas las sedes'}
           </p>
         </div>
         <Button onClick={openCreate}>
@@ -160,7 +165,8 @@ export default function AdminResidentsView() {
                     <th className="px-4 py-3 font-medium">Residente</th>
                     <th className="px-4 py-3 font-medium">RUT</th>
                     <th className="px-4 py-3 font-medium">Nacimiento</th>
-                    <th className="px-4 py-3 font-medium">Habitación / Cama</th>
+                    <th className="px-4 py-3 font-medium">Ubicación</th>
+                    <th className="px-4 py-3 font-medium">Dependencia</th>
                     <th className="px-4 py-3 font-medium">Apoderado</th>
                     <th className="px-4 py-3 font-medium">Estado</th>
                     <th className="px-4 py-3 text-right font-medium">Acciones</th>
@@ -182,8 +188,20 @@ export default function AdminResidentsView() {
                         {formatDate(r.birth_date)} <span className="text-slate-400">({ageFrom(r.birth_date)} años)</span>
                       </td>
                       <td className="px-4 py-3 text-slate-600">
-                        {r.room}
-                        {r.bed && <span className="text-slate-400"> / {r.bed}</span>}
+                        <span className="block whitespace-nowrap">
+                          Hab. {r.room}
+                          {r.bed && <span className="text-slate-400"> / {r.bed}</span>}
+                        </span>
+                        <span className="text-xs text-slate-400">{r.site_name}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        {dependencyOf(r.dependency_level) ? (
+                          <Badge variant={dependencyOf(r.dependency_level).badge}>
+                            {dependencyOf(r.dependency_level).short}
+                          </Badge>
+                        ) : (
+                          <span className="text-xs text-slate-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         {r.guardians?.[0] ? (
@@ -219,8 +237,8 @@ export default function AdminResidentsView() {
                         {r.first_name} {r.last_name}
                       </p>
                       <p className="text-xs text-slate-500">
-                        Hab. {r.room}
-                        {r.bed && ` · Cama ${r.bed}`} · {formatRut(r.rut)}
+                        {r.site_name} · Hab. {r.room}
+                        {r.bed && ` · Cama ${r.bed}`}
                       </p>
                       {(!r.is_active || !r.guardians?.length) && (
                         <div className="mt-1 flex gap-1">

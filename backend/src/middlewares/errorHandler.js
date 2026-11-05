@@ -3,15 +3,22 @@ import { AppError } from '../utils/AppError.js';
 
 const UNIQUE_MESSAGES = {
   residents_rut_key: 'Ya existe un residente con ese RUT',
-  uq_residents_active_bed: 'Esa cama ya está asignada a otro residente activo',
+  uq_residents_active_bed: 'Esa cama ya está asignada a otro residente activo en esta sede',
   users_email_key: 'Ya existe un usuario con ese correo',
-  resident_guardians_rut_key: 'Los dos apoderados no pueden tener el mismo RUT',
+  guardians_rut_key: 'Ya existe un apoderado con ese RUT: búscalo y selecciónalo de la lista',
+  resident_guardians_pkey: 'No puedes asignar el mismo apoderado dos veces',
   resident_guardians_position_key: 'Un residente puede tener máximo 2 apoderados',
 };
 
 const CHECK_MESSAGES = {
   residents_guardian_required: 'El residente debe tener al menos un apoderado',
   resident_guardians_position_check: 'Un residente puede tener máximo 2 apoderados',
+  residents_admission_after_birth: 'El ingreso no puede ser antes del nacimiento',
+};
+
+const FOREIGN_KEY_MESSAGES = {
+  residents_site_id_fkey: 'La sede seleccionada no existe',
+  resident_guardians_guardian_fkey: 'El apoderado seleccionado no existe',
 };
 
 export function notFoundHandler(_req, res) {
@@ -36,6 +43,9 @@ export function errorHandler(err, _req, res, _next) {
   // Errores de PostgreSQL
   if (err.code === '23505') {
     return res.status(409).json({ error: UNIQUE_MESSAGES[err.constraint] || 'Registro duplicado' });
+  }
+  if (err.code === '23503') {
+    return res.status(400).json({ error: FOREIGN_KEY_MESSAGES[err.constraint] || 'Referencia inválida' });
   }
   if (err.code === '23514' || err.code === '22007' || err.code === '22008') {
     return res.status(400).json({ error: CHECK_MESSAGES[err.constraint] || 'Datos inválidos' });

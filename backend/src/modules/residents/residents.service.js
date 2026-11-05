@@ -4,48 +4,64 @@ import { query, withTransaction } from '../../db/pool.js';
 import { env } from '../../config/env.js';
 import { AppError } from '../../utils/AppError.js';
 import { cleanRut } from '../../utils/rut.js';
+import { escapeLike } from '../../utils/sql.js';
+import { insertGuardian } from '../guardians/guardians.service.js';
 
-// Apoderados como arreglo JSON ordenado por posición (1 = principal)
+// Apoderados como arreglo JSON ordenado por posición (1 = principal).
+// `id` es el del apoderado (guardians.id); parentesco y posición vienen del vínculo.
+const GUARDIAN_FIELDS = {
+  id: 'g.id',
+  position: 'rg.position',
+  relationship: 'rg.relationship',
+  full_name: 'g.full_name',
+  rut: 'g.rut',
+  phone: 'g.phone',
+  email: 'g.email',
+  address: 'g.address',
+};
+
 const guardiansJson = (fields) => `
   COALESCE((
-    SELECT json_agg(json_build_object(${fields.map((f) => `'${f}', g.${f}`).join(', ')}) ORDER BY g.position)
-    FROM resident_guardians g WHERE g.resident_id = r.id
+    SELECT json_agg(json_build_object(${fields.map((f) => `'${f}', ${GUARDIAN_FIELDS[f]}`).join(', ')}) ORDER BY rg.position)
+    FROM resident_guardians rg JOIN guardians g ON g.id = rg.guardian_id
+    WHERE rg.resident_id = r.id
   ), '[]'::json) AS guardians`;
 
-// Columnas que ve cada rol. La cuidadora no necesita RUT ni metadatos de gestión;
+// Columnas que ve cada rol. La cuidadora no necesita RUT, datos de pago ni metadatos;
 // de los apoderados solo ve nombre, parentesco y teléfono (para emergencias).
-const ADMIN_COLUMNS = `
-  r.id, r.first_name, r.last_name, r.rut, r.birth_date, r.room, r.bed, r.is_active,
-  (r.photo_path IS NOT NULL) AS has_photo, r.created_at, r.updated_at,
-  ${guardiansJson(['id', 'position', 'full_name', 'rut', 'relationship', 'phone', 'email', 'address'])}`;
+const BASE_COLUMNS = `
+  r.id, r.first_name, r.last_name, r.birth_date, r.site_id, s.name AS site_name, r.room, r.bed,
+  r.admission_date, r.dependency_level, r.is_active, (r.photo_path IS NOT NULL) AS has_photo, r.updated_at`;
 
-const CAREGIVER_COLUMNS = `
-  r.id, r.first_name, r.last_name, r.birth_date, r.room, r.bed, r.is_active,
-  (r.photo_path IS NOT NULL) AS has_photo, r.updated_at`;
+const ADMIN_COLUMNS = `${BASE_COLUMNS},
+  r.rut, r.monthly_fee_uf::float8 AS monthly_fee_uf, r.payment_due_day, r.created_at,
+  ${guardiansJson(['id', 'position', 'relationship', 'full_name', 'rut', 'phone', 'email', 'address'])}`;
+
+const CAREGIVER_COLUMNS = BASE_COLUMNS;
 
 const CAREGIVER_DETAIL_COLUMNS = `${CAREGIVER_COLUMNS},
-  ${guardiansJson(['id', 'position', 'full_name', 'relationship', 'phone'])}`;
+  ${guardiansJson(['id', 'position', 'relationship', 'full_name', 'phone'])}`;
 
-async function replaceGuardians(client, residentId, guardians) {
+const FROM = 'FROM residents r JOIN sites s ON s.id = r.site_id';
+
+async function replaceGuardians(client, residentId, links, userId) {
   await client.query('DELETE FROM resident_guardians WHERE resident_id = $1', [residentId]);
-  for (const [index, g] of guardians.entries()) {
+  for (const [index, link] of links.entries()) {
+    const guardianId = link.guardian_id ?? (await insertGuardian(link.guardian, userId, client));
     await client.query(
-      `INSERT INTO resident_guardians (resident_id, position, full_name, rut, relationship, phone, email, address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [residentId, index + 1, g.full_name, g.rut, g.relationship, g.phone, g.email, g.address],
+      'INSERT INTO resident_guardians (resident_id, guardian_id, position, relationship) VALUES ($1, $2, $3, $4)',
+      [residentId, guardianId, index + 1, link.relationship],
     );
   }
 }
 
 const SORTS = {
   name: 'r.last_name, r.first_name',
-  room: 'r.room, r.bed NULLS LAST, r.last_name',
+  room: 's.name, r.room, r.bed NULLS LAST, r.last_name',
   created: 'r.created_at DESC',
 };
 
-const escapeLike = (value) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
-
-export async function listResidents({ search, status, sort, page, pageSize }, { isAdmin }) {
+export async function listResidents({ search, site_id: siteId, status, sort, page, pageSize }, { isAdmin }) {
   const where = [];
   const params = [];
 
@@ -53,6 +69,11 @@ export async function listResidents({ search, status, sort, page, pageSize }, { 
   const effectiveStatus = isAdmin ? status : 'active';
   if (effectiveStatus === 'active') where.push('r.is_active = TRUE');
   if (effectiveStatus === 'inactive') where.push('r.is_active = FALSE');
+
+  if (siteId) {
+    params.push(siteId);
+    where.push(`r.site_id = $${params.length}`);
+  }
 
   if (search) {
     params.push(`%${escapeLike(search.toLowerCase())}%`);
@@ -72,7 +93,7 @@ export async function listResidents({ search, status, sort, page, pageSize }, { 
   params.push(pageSize, (page - 1) * pageSize);
   const sql = `
     SELECT ${isAdmin ? ADMIN_COLUMNS : CAREGIVER_COLUMNS}, COUNT(*) OVER() AS total_count
-    FROM residents r
+    ${FROM}
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
     ORDER BY ${SORTS[sort]}
     LIMIT $${params.length - 1} OFFSET $${params.length}`;
@@ -87,7 +108,7 @@ export async function listResidents({ search, status, sort, page, pageSize }, { 
 
 export async function getResident(id, { isAdmin }) {
   const { rows } = await query(
-    `SELECT ${isAdmin ? ADMIN_COLUMNS : CAREGIVER_DETAIL_COLUMNS} FROM residents r WHERE r.id = $1`,
+    `SELECT ${isAdmin ? ADMIN_COLUMNS : CAREGIVER_DETAIL_COLUMNS} ${FROM} WHERE r.id = $1`,
     [id],
   );
   const resident = rows[0];
@@ -95,15 +116,23 @@ export async function getResident(id, { isAdmin }) {
   return resident;
 }
 
+// Orden de columnas compartido por INSERT y UPDATE
+const RESIDENT_COLUMNS = [
+  'first_name', 'last_name', 'rut', 'birth_date', 'site_id', 'room', 'bed',
+  'admission_date', 'dependency_level', 'monthly_fee_uf', 'payment_due_day', 'is_active',
+];
+const residentValues = (input) => RESIDENT_COLUMNS.map((c) => input[c]);
+
 export async function createResident(input, userId) {
   const id = await withTransaction(async (client) => {
+    const n = RESIDENT_COLUMNS.length;
     const { rows } = await client.query(
-      `INSERT INTO residents (first_name, last_name, rut, birth_date, room, bed, is_active, created_by, updated_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+      `INSERT INTO residents (${RESIDENT_COLUMNS.join(', ')}, created_by, updated_by)
+       VALUES (${RESIDENT_COLUMNS.map((_, i) => `$${i + 1}`).join(', ')}, $${n + 1}, $${n + 1})
        RETURNING id`,
-      [input.first_name, input.last_name, input.rut, input.birth_date, input.room, input.bed, input.is_active, userId],
+      [...residentValues(input), userId],
     );
-    await replaceGuardians(client, rows[0].id, input.guardians);
+    await replaceGuardians(client, rows[0].id, input.guardians, userId);
     return rows[0].id;
   });
   return getResident(id, { isAdmin: true });
@@ -111,15 +140,15 @@ export async function createResident(input, userId) {
 
 export async function updateResident(id, input, userId) {
   await withTransaction(async (client) => {
+    const n = RESIDENT_COLUMNS.length;
     const { rowCount } = await client.query(
       `UPDATE residents
-          SET first_name = $1, last_name = $2, rut = $3, birth_date = $4,
-              room = $5, bed = $6, is_active = $7, updated_by = $8
-        WHERE id = $9`,
-      [input.first_name, input.last_name, input.rut, input.birth_date, input.room, input.bed, input.is_active, userId, id],
+          SET ${RESIDENT_COLUMNS.map((c, i) => `${c} = $${i + 1}`).join(', ')}, updated_by = $${n + 1}
+        WHERE id = $${n + 2}`,
+      [...residentValues(input), userId, id],
     );
     if (rowCount === 0) throw AppError.notFound('Residente no encontrado');
-    await replaceGuardians(client, id, input.guardians);
+    await replaceGuardians(client, id, input.guardians, userId);
   });
   return getResident(id, { isAdmin: true });
 }

@@ -11,6 +11,7 @@ import { ForbiddenPage, NotFoundPage } from '@/pages/StatusPages';
 
 const UsersPage = lazy(() => import('@/features/users/UsersPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
+const GuardiansPage = lazy(() => import('@/features/guardians/GuardiansPage'));
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
 
                 <Route element={<RequireRole roles={[ROLES.ADMIN]} />}>
                   <Route path="usuarios" element={<UsersPage />} />
+                  <Route path="apoderados" element={<GuardiansPage />} />
                 </Route>
 
                 <Route path="403" element={<ForbiddenPage />} />
