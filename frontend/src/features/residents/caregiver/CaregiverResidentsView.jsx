@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, Users } from 'lucide-react';
 import { Input } from '@/components/ui/Form';
@@ -6,34 +6,44 @@ import { Alert, EmptyState, Spinner } from '@/components/ui/Feedback';
 import { ageFrom, cn } from '@/lib/utils';
 import { ResidentAvatar } from '../ResidentAvatar';
 import { useResidents } from '../useResidents';
+import { useSites } from '@/features/sites/SiteContext';
 
 /**
  * Vista para cuidadoras (móvil): grilla de tarjetas grandes para SELECCIONAR al residente.
  * El filtro solo acota la grilla; nunca se escriben nombres para crear registros.
  */
 export default function CaregiverResidentsView() {
-  const { data, loading, error } = useResidents({ status: 'active', sort: 'room', pageSize: 200 });
+  const { siteId, currentSite } = useSites();
+  const { data, loading, error } = useResidents({ site_id: siteId, status: 'active', sort: 'room', pageSize: 200 });
   const [filter, setFilter] = useState('');
   const [room, setRoom] = useState(null);
 
-  const rooms = useMemo(
-    () => [...new Set(data.map((r) => r.room))].sort((a, b) => a.localeCompare(b, 'es', { numeric: true })),
-    [data],
-  );
+  useEffect(() => setRoom(null), [siteId]);
+
+  // Las habitaciones se repiten entre sedes: la clave incluye la sede
+  const roomKey = (r) => `${r.site_id}:${r.room}`;
+  const rooms = useMemo(() => {
+    const map = new Map(data.map((r) => [roomKey(r), r]));
+    return [...map.entries()]
+      .sort(([, a], [, b]) => a.site_name.localeCompare(b.site_name) || a.room.localeCompare(b.room, 'es', { numeric: true }))
+      .map(([key, r]) => ({ key, label: siteId ? `Hab. ${r.room}` : `Hab. ${r.room} · ${r.site_name}` }));
+  }, [data, siteId]);
 
   const visible = useMemo(() => {
     const text = filter.trim().toLowerCase();
     return data.filter(
       (r) =>
-        (!room || r.room === room) &&
-        (!text || `${r.first_name} ${r.last_name} ${r.room}`.toLowerCase().includes(text)),
+        (!room || roomKey(r) === room) &&
+        (!text || `${r.first_name} ${r.last_name} ${r.room} ${r.site_name}`.toLowerCase().includes(text)),
     );
   }, [data, filter, room]);
 
   return (
     <div className="mx-auto max-w-5xl">
       <h1 className="text-2xl font-semibold text-slate-900">Residentes</h1>
-      <p className="mt-1 text-sm text-slate-500">Toca a un residente para ver su ficha.</p>
+      <p className="mt-1 text-sm text-slate-500">
+        {currentSite ? `Sede ${currentSite.name}` : 'Todas las sedes'} · Toca a un residente para ver su ficha.
+      </p>
 
       <div className="sticky top-14 z-20 -mx-4 mt-4 space-y-3 bg-slate-50/95 px-4 py-3 backdrop-blur lg:top-0">
         <div className="relative">
@@ -52,8 +62,8 @@ export default function CaregiverResidentsView() {
               Todas
             </RoomChip>
             {rooms.map((r) => (
-              <RoomChip key={r} active={room === r} onClick={() => setRoom(room === r ? null : r)}>
-                Hab. {r}
+              <RoomChip key={r.key} active={room === r.key} onClick={() => setRoom(room === r.key ? null : r.key)}>
+                {r.label}
               </RoomChip>
             ))}
           </div>
@@ -89,6 +99,7 @@ export default function CaregiverResidentsView() {
                     </span>
                     <span className="text-xs text-slate-500">{ageFrom(resident.birth_date)} años</span>
                   </div>
+                  {!siteId && <p className="mt-1.5 truncate text-xs font-medium text-accent-700">{resident.site_name}</p>}
                 </div>
               </Link>
             </li>

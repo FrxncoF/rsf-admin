@@ -1,11 +1,13 @@
 import fs from 'node:fs/promises';
 import { env } from './config/env.js';
 import { pool, waitForDb } from './db/pool.js';
+import { runMigrations } from './db/migrate.js';
 import { createApp } from './app.js';
 import { ensureInitialAdmin } from './modules/users/users.service.js';
 
 async function main() {
   await waitForDb();
+  await runMigrations();
   await ensureInitialAdmin(env.admin);
   await fs.mkdir(env.uploadDir, { recursive: true });
 

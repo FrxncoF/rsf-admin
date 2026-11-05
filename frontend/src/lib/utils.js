@@ -33,3 +33,8 @@ export function formatDateTime(value) {
 export function roomLabel({ room, bed }) {
   return bed ? `Hab. ${room} · Cama ${bed}` : `Hab. ${room}`;
 }
+
+/** "El Curato · Hab. 9 · Cama A" */
+export function locationLabel(resident) {
+  return resident.site_name ? `${resident.site_name} · ${roomLabel(resident)}` : roomLabel(resident);
+}

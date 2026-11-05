@@ -3,6 +3,7 @@ import { LogOut, Settings, X } from 'lucide-react';
 import { cn, initials } from '@/lib/utils';
 import { useAuth } from '@/features/auth/AuthContext';
 import { navItemsFor, ROLE_LABELS } from './navigation';
+import { UfBadge } from './TopBar';
 
 const navLinkClass =
   (collapsed) =>
@@ -16,7 +17,7 @@ const navLinkClass =
     );
 
 /** Contenido compartido entre el sidebar de escritorio y el drawer móvil. */
-export function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse, onClose }) {
+export function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse, onClose, showUf = false }) {
   const { user, logout } = useAuth();
   const items = navItemsFor(user.role);
   const [first = '', ...rest] = user.full_name.split(' ');
@@ -70,6 +71,8 @@ export function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse
           </NavLink>
         ))}
       </nav>
+
+      {showUf && user.role === 'ADMIN' && <UfBadge className="mx-3 mb-3 flex-wrap" />}
 
       <div className="space-y-1 border-t border-slate-200 p-3 pb-safe lg:pb-3">
         <div className={cn('flex items-center gap-3 px-2 py-2', collapsed && 'justify-center px-0')}>

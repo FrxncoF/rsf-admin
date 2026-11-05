@@ -24,8 +24,11 @@ openssl rand -hex 48   # JWT_SECRET
 openssl rand -hex 18   # POSTGRES_PASSWORD
 ```
 
-> `db/init.sql` solo se ejecuta cuando el volumen `pgdata` está vacío. Para reiniciar la BD desde cero:
-> `docker compose down -v` (borra datos y fotos).
+> `db/init.sql` es el esquema base y solo se ejecuta cuando el volumen `pgdata` está vacío.
+> Los cambios posteriores están en `backend/migrations/NNN_*.sql`: el backend los aplica solo al
+> arrancar y los registra en la tabla `schema_migrations`. Para un cambio de esquema nuevo, crea el
+> siguiente archivo numerado; **no edites migraciones ya aplicadas ni re-apliques `init.sql`**.
+> Para reiniciar la BD desde cero: `docker compose down -v` (borra datos y fotos).
 
 ## Estructura
 
@@ -34,20 +37,24 @@ rsf-admin/
 ├── docker-compose.yml
 ├── .env.example
 ├── db/
-│   └── init.sql                     # users + residents, índices, constraints, triggers
+│   └── init.sql                     # esquema base Fase 1 (users, residents, apoderados)
 ├── backend/
 │   ├── Dockerfile                   # multi-stage, usuario no-root, tini, healthcheck
+│   ├── migrations/                  # 001: sedes, apoderados N:M, datos de ingreso y pago
 │   └── src/
-│       ├── server.js                # arranque, espera BD, crea ADMIN inicial, shutdown limpio
+│       ├── server.js                # arranque, espera BD, migra, crea ADMIN inicial, shutdown limpio
 │       ├── app.js                   # helmet, cors, cookies, rutas /api
 │       ├── config/env.js
-│       ├── db/pool.js
+│       ├── db/                      # pool.js, migrate.js
 │       ├── middlewares/
 │       │   ├── auth.js              # verifyToken + verifyRole(['ADMIN'])
 │       │   └── errorHandler.js      # AppError, zod, multer, errores PG (409 duplicados)
 │       ├── modules/
 │       │   ├── auth/                # /auth/login, /auth/logout, /auth/me
 │       │   ├── residents/           # CRUD + estado + foto
+│       │   ├── guardians/           # apoderados (1 apoderado → N residentes)
+│       │   ├── sites/               # sedes: Los Talaveras, El Curato
+│       │   ├── indicators/          # valor UF del día (CMF, respaldo mindicador.cl)
 │       │   └── users/               # gestión de cuentas (ADMIN)
 │       └── utils/                   # AppError, validación, RUT (módulo 11)
 └── frontend/
@@ -57,16 +64,19 @@ rsf-admin/
     ├── public/                      # favicon + íconos PWA (npm run icons para regenerar)
     └── src/
         ├── App.jsx                  # rutas + guards
-        ├── lib/                     # api client, utils, rut, hooks
+        ├── lib/                     # api client, utils, rut, phone, money (UF/CLP), hooks
         ├── components/
         │   ├── ui/                  # Button, Input, Dialog, Badge, Card...
-        │   └── layout/              # AppLayout, Sidebar (desktop colapsable), MobileDrawer, navigation.js
+        │   └── layout/              # AppLayout, TopBar (sede + UF), Sidebar, MobileDrawer, navigation.js
         ├── features/
         │   ├── auth/                # AuthContext, RequireAuth/RequireRole, LoginPage
         │   ├── residents/
         │   │   ├── admin/           # tabla de gestión + formulario
         │   │   ├── caregiver/       # grilla de tarjetas táctiles
-        │   │   └── detail/          # ficha del residente + MedicalRecordPlaceholder
+        │   │   └── detail/          # ficha del residente
+        │   ├── daily-log/           # bitácora diaria (UI con estado local, Fase 2: conectar API)
+        │   ├── guardians/           # módulo Apoderados + buscador/alta reutilizables
+        │   ├── sites/               # SiteContext: sede seleccionada global
         │   └── users/
         └── pages/                   # 403 / 404
 ```
@@ -80,7 +90,7 @@ Todas bajo `/api`. Sesión por cookie `httpOnly` + `SameSite=Strict` (también a
 | POST | `/auth/login` | público (rate-limit 10/15 min) | Inicia sesión |
 | POST | `/auth/logout` | — | Cierra sesión |
 | GET | `/auth/me` | autenticado | Usuario actual |
-| GET | `/residents?search=&status=active\|inactive\|all&sort=name\|room\|created&page=&pageSize=` | ADMIN, CUIDADORA | Listado (cuidadora: solo activos, sin RUT) |
+| GET | `/residents?search=&site_id=&status=active\|inactive\|all&sort=name\|room\|created&page=&pageSize=` | ADMIN, CUIDADORA | Listado (cuidadora: solo activos, sin RUT ni datos de pago) |
 | GET | `/residents/:id` | ADMIN, CUIDADORA | Detalle |
 | POST | `/residents` | ADMIN | Crear |
 | PUT | `/residents/:id` | ADMIN | Reemplazar |
@@ -88,6 +98,9 @@ Todas bajo `/api`. Sesión por cookie `httpOnly` + `SameSite=Strict` (también a
 | DELETE | `/residents/:id` | ADMIN | Eliminar definitivamente |
 | GET / POST / DELETE | `/residents/:id/photo` | GET ambos · resto ADMIN | Foto (JPG/PNG/WEBP, 5 MB) |
 | GET / POST / PATCH | `/users`, `/users/:id` | ADMIN | Gestión de cuentas |
+| GET / POST / PUT / DELETE | `/guardians`, `/guardians/:id` | ADMIN | Apoderados (no se elimina si tiene residentes) |
+| GET | `/sites` | autenticado | Sedes |
+| GET | `/indicators/uf` | autenticado | UF del día (API CMF con `APIKEYCMF`; si falla, mindicador.cl) |
 | GET | `/health` | público | Healthcheck |
 
 ## Desarrollo local (sin Docker para el código)
@@ -111,6 +124,7 @@ cd frontend && npm install && npm run dev     # http://localhost:5173 (proxy /ap
 
 ## Siguiente fase
 
-- **Ficha médica:** reemplazar `frontend/src/features/residents/detail/MedicalRecordPlaceholder.jsx`
-  por el formulario construido desde el PDF, con su tabla y endpoints propios.
+- **Bitácora diaria:** la UI ya existe en `frontend/src/features/daily-log/` con estado local.
+  Falta crear tablas, endpoints y auditoría, y conectar `useDailyLog.js` al API
+  (hoy los datos se pierden al recargar).
 - Fuera de alcance en Fase 1: medicamentos, farmacia y auditoría.

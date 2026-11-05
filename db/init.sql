@@ -1,7 +1,9 @@
 -- =====================================================================
 -- Residencia San Francisco · Fase 1 · Esquema inicial (PostgreSQL 15+)
 -- Se ejecuta automáticamente la PRIMERA vez que se crea el volumen de datos
--- (docker-entrypoint-initdb.d). Es idempotente para poder re-aplicarlo a mano.
+-- (docker-entrypoint-initdb.d). Los cambios posteriores viven en
+-- backend/migrations/ y el backend los aplica al arrancar: NO re-aplicar este
+-- archivo a mano sobre una base ya migrada.
 -- =====================================================================
 
 SET client_encoding = 'UTF8';

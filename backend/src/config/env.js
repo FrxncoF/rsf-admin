@@ -24,6 +24,8 @@ export const env = Object.freeze({
     .filter(Boolean),
   uploadDir: path.resolve(process.env.UPLOAD_DIR || 'uploads'),
   maxPhotoBytes: 5 * 1024 * 1024,
+  // API key de la CMF para el valor de la UF; sin ella (o si falla) se usa mindicador.cl
+  cmfApiKey: process.env.APIKEYCMF || '',
   admin: {
     email: process.env.ADMIN_EMAIL || '',
     password: process.env.ADMIN_PASSWORD || '',

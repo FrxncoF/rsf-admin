@@ -6,6 +6,7 @@ const VARIANTS = {
   muted: 'bg-slate-100 text-slate-500 ring-slate-200',
   brand: 'bg-brand-50 text-brand-700 ring-brand-200',
   warning: 'bg-amber-50 text-amber-700 ring-amber-200',
+  danger: 'bg-red-50 text-red-700 ring-red-200',
 };
 
 export function Badge({ variant = 'default', className, ...props }) {
