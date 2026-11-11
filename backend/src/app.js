@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
+import rateLimit from 'express-rate-limit';
 import { env } from './config/env.js';
 import { pool } from './db/pool.js';
 import { authRouter } from './modules/auth/auth.routes.js';
@@ -37,6 +38,19 @@ export function createApp() {
   app.use(morgan(env.isProd ? 'combined' : 'dev'));
 
   const api = express.Router();
+
+  // Límite general por IP: un uso normal no pasa de unas decenas por minuto.
+  // Frena scripts que recorren la API o intentan saturarla.
+  api.use(
+    rateLimit({
+      windowMs: 60 * 1000,
+      limit: 300,
+      standardHeaders: 'draft-7',
+      legacyHeaders: false,
+      skip: (req) => req.path === '/health',
+      message: { error: 'Demasiadas solicitudes. Espera un momento e intenta nuevamente.' },
+    }),
+  );
 
   api.get('/health', async (_req, res) => {
     await pool.query('SELECT 1');

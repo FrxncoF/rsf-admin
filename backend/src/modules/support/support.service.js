@@ -116,4 +116,6 @@ function paginate(rows, page, pageSize) {
 export async function pruneLogs() {
   await query(`DELETE FROM error_logs WHERE created_at < now() - interval '180 days'`);
   await query(`DELETE FROM login_events WHERE created_at < now() - interval '180 days'`);
+  // Tokens revocados ya vencidos: no hace falta recordarlos
+  await query('DELETE FROM revoked_tokens WHERE expires_at < now()');
 }
