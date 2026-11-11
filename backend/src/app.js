@@ -21,7 +21,8 @@ export function createApp() {
   const app = express();
 
   app.disable('x-powered-by');
-  app.set('trust proxy', 1); // detrás de Nginx: IP real para rate-limit
+  // Cantidad de proxies delante (Nginx = 1; Caddy + Nginx = 2): IP real para rate-limit y registro de accesos
+  app.set('trust proxy', Number(process.env.TRUST_PROXY || 1));
 
   app.use(helmet());
   app.use(
