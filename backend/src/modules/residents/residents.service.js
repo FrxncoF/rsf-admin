@@ -249,7 +249,15 @@ export async function getPhotoPath(id, { isAdmin }) {
   const { rows } = await query('SELECT photo_path, is_active FROM residents WHERE id = $1', [id]);
   const row = rows[0];
   if (!row?.photo_path || (!isAdmin && !row.is_active)) throw AppError.notFound('Foto no encontrada');
-  return path.join(photoDir(), path.basename(row.photo_path));
+  const filePath = path.join(photoDir(), path.basename(row.photo_path));
+  // La BD puede apuntar a un archivo que no está en este servidor (ej. base restaurada sin
+  // copiar el volumen de fotos): 404 para que la app muestre las iniciales, no un error 500.
+  try {
+    await fs.access(filePath);
+  } catch {
+    throw AppError.notFound('Foto no encontrada');
+  }
+  return filePath;
 }
 
 // ---------------------------------------------------------------------
