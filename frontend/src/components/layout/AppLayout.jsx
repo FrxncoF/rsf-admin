@@ -6,6 +6,7 @@ import { MobileDrawer } from './MobileDrawer';
 import { SiteSelector, UfBadge } from './TopBar';
 import { SiteProvider } from '@/features/sites/SiteContext';
 import { BirthdayBanner } from '@/features/residents/BirthdayBanner';
+import { TopBanner } from '@/features/app-config/AppConfigContext';
 import { useAuth } from '@/features/auth/AuthContext';
 
 const COLLAPSE_KEY = 'rsf:sidebar-collapsed';
@@ -27,6 +28,8 @@ export default function AppLayout() {
 
   return (
     <SiteProvider>
+      {/* Avisos solo con sesión iniciada: el login queda limpio */}
+      <TopBanner />
       <BirthdayBanner />
       <div className="flex min-h-dvh">
         <DesktopSidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
