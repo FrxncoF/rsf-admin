@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { FullScreenLoader } from '@/components/ui/Feedback';
-import { useAuth } from './AuthContext';
+import { hasRole, useAuth } from './AuthContext';
+import ForcePasswordChange from './ForcePasswordChange';
 
 /** Exige sesión iniciada; si no, redirige a /login recordando la ruta de origen. */
 export function RequireAuth() {
@@ -9,13 +10,14 @@ export function RequireAuth() {
 
   if (status === 'loading') return <FullScreenLoader />;
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (user.must_change_password) return <ForcePasswordChange />;
   return <Outlet />;
 }
 
 /** Exige uno de los roles indicados (usar dentro de RequireAuth). */
 export function RequireRole({ roles }) {
   const { user } = useAuth();
-  if (!roles.includes(user?.role)) return <Navigate to="/403" replace />;
+  if (!hasRole(user, roles)) return <Navigate to="/403" replace />;
   return <Outlet />;
 }
 

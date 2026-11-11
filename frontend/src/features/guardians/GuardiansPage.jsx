@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Contact, Mail, MapPin, Pencil, Phone, Plus, Search, Trash2 } from 'lucide-react';
+import { Contact, Mail, MapPin, Pencil, Phone, Plus, Power, Search } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { ConfirmDialog, Dialog } from '@/components/ui/Dialog';
-import { Input } from '@/components/ui/Form';
+import { Input, Select } from '@/components/ui/Form';
 import { Alert, EmptyState, Spinner } from '@/components/ui/Feedback';
 import { useDebouncedValue } from '@/lib/hooks';
 import { formatPhone, phoneHref } from '@/lib/phone';
@@ -16,35 +16,35 @@ import { EMPTY_GUARDIAN, GuardianFields, toGuardianForm, toGuardianPayload, vali
 /** Módulo Apoderados (ADMIN): un apoderado puede estar a cargo de varios residentes. */
 export default function GuardiansPage() {
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('active');
   const debounced = useDebouncedValue(search);
   const [state, setState] = useState({ data: [], meta: null, loading: true, error: '' });
   const [dialog, setDialog] = useState({ open: false, guardian: null });
-  const [toDelete, setToDelete] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [toToggle, setToToggle] = useState(null);
+  const [toggling, setToggling] = useState(false);
   const [actionError, setActionError] = useState('');
 
   const load = useCallback(() => {
     setState((s) => ({ ...s, loading: true }));
     guardiansApi
-      .list({ search: debounced.trim() || undefined, pageSize: 100 })
+      .list({ search: debounced.trim() || undefined, status, pageSize: 100 })
       .then(({ data, meta }) => setState({ data, meta, loading: false, error: '' }))
       .catch((err) => setState((s) => ({ ...s, loading: false, error: err.message })));
-  }, [debounced]);
+  }, [debounced, status]);
 
   useEffect(load, [load]);
 
-  async function confirmDelete() {
-    setDeleting(true);
+  async function confirmToggle() {
+    setToggling(true);
     setActionError('');
     try {
-      await guardiansApi.remove(toDelete.id);
-      setToDelete(null);
+      await guardiansApi.setStatus(toToggle.id, !toToggle.is_active);
       load();
     } catch (err) {
       setActionError(err.message);
-      setToDelete(null);
     } finally {
-      setDeleting(false);
+      setToToggle(null);
+      setToggling(false);
     }
   }
 
@@ -64,15 +64,22 @@ export default function GuardiansPage() {
         </Button>
       </div>
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
-        <Input
-          type="search"
-          placeholder="Buscar por nombre, RUT o teléfono"
-          className="pl-9"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            type="search"
+            placeholder="Buscar por nombre, RUT o teléfono"
+            className="pl-9"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <Select value={status} onChange={(e) => setStatus(e.target.value)} className="sm:w-44" aria-label="Estado">
+          <option value="active">Activos</option>
+          <option value="inactive">Desactivados</option>
+          <option value="all">Todos</option>
+        </Select>
       </div>
 
       <Alert>{error || actionError}</Alert>
@@ -96,7 +103,7 @@ export default function GuardiansPage() {
               <GuardianCard
                 guardian={g}
                 onEdit={() => setDialog({ open: true, guardian: g })}
-                onDelete={() => setToDelete(g)}
+                onToggle={() => setToToggle(g)}
               />
             </li>
           ))}
@@ -114,26 +121,36 @@ export default function GuardiansPage() {
       />
 
       <ConfirmDialog
-        open={Boolean(toDelete)}
-        onClose={() => setToDelete(null)}
-        onConfirm={confirmDelete}
-        loading={deleting}
-        destructive
-        title="Eliminar apoderado"
-        confirmLabel="Eliminar"
-        description={toDelete && `Se eliminará a ${toDelete.full_name} de forma permanente.`}
+        open={Boolean(toToggle)}
+        onClose={() => setToToggle(null)}
+        onConfirm={confirmToggle}
+        loading={toggling}
+        destructive={toToggle?.is_active}
+        title={toToggle?.is_active ? 'Desactivar apoderado' : 'Reactivar apoderado'}
+        confirmLabel={toToggle?.is_active ? 'Desactivar' : 'Reactivar'}
+        description={
+          toToggle &&
+          (toToggle.is_active
+            ? `${toToggle.full_name} dejará de aparecer en las búsquedas y no se podrá asignar a residentes. Sus datos se conservan y se puede reactivar.`
+            : `${toToggle.full_name} volverá a aparecer y se podrá asignar a residentes.`)
+        }
       />
     </div>
   );
 }
 
-function GuardianCard({ guardian: g, onEdit, onDelete }) {
+function GuardianCard({ guardian: g, onEdit, onToggle }) {
   const linked = g.residents.length > 0;
+  // No se puede desactivar mientras sea apoderado de residentes activos
+  const lockedActive = g.is_active && g.residents.some((r) => r.is_active);
   return (
     <Card className="flex h-full flex-col p-4">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-semibold text-slate-900">{g.full_name}</p>
+          <p className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
+            {g.full_name}
+            {!g.is_active && <Badge variant="muted">Desactivado</Badge>}
+          </p>
           {g.rut && <p className="text-xs text-slate-500">RUT {formatRut(g.rut)}</p>}
         </div>
         <div className="flex shrink-0 gap-1">
@@ -143,13 +160,12 @@ function GuardianCard({ guardian: g, onEdit, onDelete }) {
           <Button
             variant="ghost"
             size="icon"
-            title={linked ? 'Tiene residentes asociados' : 'Eliminar'}
-            aria-label="Eliminar"
-            disabled={linked}
-            className="hover:bg-red-50 hover:text-red-600"
-            onClick={onDelete}
+            title={lockedActive ? 'Es apoderado de residentes activos' : g.is_active ? 'Desactivar' : 'Reactivar'}
+            aria-label={g.is_active ? 'Desactivar' : 'Reactivar'}
+            disabled={lockedActive}
+            onClick={onToggle}
           >
-            <Trash2 className="size-4" />
+            <Power className={g.is_active ? 'size-4 text-accent-600' : 'size-4 text-slate-400'} />
           </Button>
         </div>
       </div>

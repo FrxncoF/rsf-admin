@@ -17,7 +17,8 @@ import {
 } from '@/features/guardians/GuardianFields';
 import { residentsApi } from '../residentsApi';
 import { ResidentAvatar } from '../ResidentAvatar';
-import { DEPENDENCY_LEVELS, PAYMENT_DAYS } from '../constants';
+import { COGNITIVE_LEVELS, DEPENDENCY_LEVELS, HEALTH_SYSTEMS, PAYMENT_DAYS, PRESSURE_RISKS } from '../constants';
+import { catalogOptions, useAppConfig } from '@/features/app-config/AppConfigContext';
 
 export const MAX_GUARDIANS = 2;
 const RELATIONSHIPS = ['Hijo', 'Hija', 'Nieto', 'Nieta', 'Cónyuge', 'Hermano', 'Hermana', 'Sobrino', 'Sobrina', 'Nuera', 'Yerno', 'Tutor legal', 'Otro'];
@@ -40,8 +41,15 @@ const EMPTY = {
   bed: '',
   admission_date: '',
   dependency_level: '',
+  cognitive_level: '',
+  pressure_risk: '',
   monthly_fee_uf: '',
   payment_due_day: '',
+  ambulance: '',
+  has_cesfam: '', // 'yes' | 'no'
+  care_place: '',
+  health_system: '',
+  isapre: '',
   is_active: true,
   guardians: [EMPTY_LINK],
 };
@@ -59,7 +67,9 @@ function validate(values) {
   if (!values.admission_date) errors.admission_date = 'Ingresa la fecha de ingreso';
   else if (values.admission_date > today()) errors.admission_date = 'La fecha no puede ser futura';
   else if (values.birth_date && values.admission_date < values.birth_date) errors.admission_date = 'No puede ser antes del nacimiento';
-  if (!values.dependency_level) errors.dependency_level = 'Selecciona el nivel';
+  if (!values.dependency_level) errors.dependency_level = 'Selecciona el índice de Katz';
+  if (!values.cognitive_level) errors.cognitive_level = 'Selecciona el índice de Pfeiffer';
+  if (!values.pressure_risk) errors.pressure_risk = 'Selecciona la escala de Norton';
 
   const fee = parseUfInput(values.monthly_fee_uf);
   if (String(values.monthly_fee_uf).trim() === '') errors.monthly_fee_uf = 'Ingresa la mensualidad';
@@ -67,6 +77,10 @@ function validate(values) {
     errors.monthly_fee_uf = 'Monto inválido (ej: 28,5)';
   }
   if (!values.payment_due_day) errors.payment_due_day = 'Indica el día';
+  if (!values.ambulance) errors.ambulance = 'Selecciona la ambulancia';
+  if (!values.has_cesfam) errors.has_cesfam = 'Indica si está inscrito';
+  if (!values.health_system) errors.health_system = 'Selecciona la previsión';
+  else if (values.health_system === 'ISAPRE' && !values.isapre) errors.isapre = 'Selecciona la isapre';
 
   if (values.guardians.length < 1) errors.guardians = 'El residente debe tener al menos un apoderado';
   values.guardians.forEach((link, i) => {
@@ -98,6 +112,7 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
   const formId = useId();
   const { sites, siteId: currentSiteId } = useSites();
   const { uf } = useUf();
+  const { catalogs } = useAppConfig();
   const [values, setValues] = useState(EMPTY);
   const [errors, setErrors] = useState({});
   const [serverError, setServerError] = useState('');
@@ -117,8 +132,15 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
             bed: resident.bed ?? '',
             admission_date: resident.admission_date ?? '',
             dependency_level: resident.dependency_level ?? '',
+            cognitive_level: resident.cognitive_level ?? '',
+            pressure_risk: resident.pressure_risk ?? '',
             monthly_fee_uf: resident.monthly_fee_uf != null ? String(resident.monthly_fee_uf).replace('.', ',') : '',
             payment_due_day: resident.payment_due_day ?? '',
+            ambulance: resident.ambulance ?? '',
+            has_cesfam: resident.has_cesfam == null ? '' : resident.has_cesfam ? 'yes' : 'no',
+            care_place: resident.care_place ?? '',
+            health_system: resident.health_system ?? '',
+            isapre: resident.isapre ?? '',
             guardians: resident.guardians?.length ? resident.guardians.map(toFormLink) : [EMPTY_LINK],
           }
         : { ...EMPTY, site_id: currentSiteId ?? '' },
@@ -179,8 +201,15 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
         bed: values.bed.trim() || null,
         admission_date: values.admission_date,
         dependency_level: values.dependency_level,
+        cognitive_level: values.cognitive_level,
+        pressure_risk: values.pressure_risk,
         monthly_fee_uf: String(values.monthly_fee_uf).trim(),
         payment_due_day: Number(values.payment_due_day),
+        ambulance: values.ambulance,
+        has_cesfam: values.has_cesfam === 'yes',
+        care_place: values.care_place.trim() || null,
+        health_system: values.health_system,
+        isapre: values.health_system === 'ISAPRE' ? values.isapre : null,
         is_active: values.is_active,
         guardians: values.guardians.map(toPayloadLink),
       };
@@ -335,21 +364,6 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
                 aria-invalid={!!errors.admission_date}
               />
             </Field>
-            <Field label="Nivel de dependencia" htmlFor="dependency_level" error={errors.dependency_level}>
-              <Select
-                id="dependency_level"
-                value={values.dependency_level}
-                onChange={set('dependency_level')}
-                aria-invalid={!!errors.dependency_level}
-              >
-                <option value="">Selecciona…</option>
-                {DEPENDENCY_LEVELS.map((d) => (
-                  <option key={d.value} value={d.value}>
-                    {d.label}
-                  </option>
-                ))}
-              </Select>
-            </Field>
             <Field
               label="Mensualidad"
               htmlFor="monthly_fee_uf"
@@ -386,6 +400,106 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
                 ))}
               </Select>
             </Field>
+          </div>
+        </FormSection>
+
+        <FormSection title="Salud y cobertura">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Previsión" htmlFor="health_system" error={errors.health_system}>
+              <Select
+                id="health_system"
+                value={values.health_system}
+                onChange={(e) => {
+                  set('health_system')(e);
+                  setErrors((errs) => ({ ...errs, isapre: undefined }));
+                }}
+                aria-invalid={!!errors.health_system}
+              >
+                <option value="">Selecciona…</option>
+                {HEALTH_SYSTEMS.map((h) => (
+                  <option key={h.value} value={h.value}>
+                    {h.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {values.health_system === 'ISAPRE' ? (
+              <Field label="Isapre" htmlFor="isapre" error={errors.isapre}>
+                <Select id="isapre" value={values.isapre} onChange={set('isapre')} aria-invalid={!!errors.isapre}>
+                  <option value="">Selecciona…</option>
+                  {catalogOptions(catalogs.isapres, resident?.isapre).map((i) => (
+                    <option key={i.value} value={i.value}>
+                      {i.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ) : (
+              <div className="hidden sm:block" />
+            )}
+            <Field label="Ambulancia" htmlFor="ambulance" error={errors.ambulance}>
+              <Select id="ambulance" value={values.ambulance} onChange={set('ambulance')} aria-invalid={!!errors.ambulance}>
+                <option value="">Selecciona…</option>
+                {catalogOptions(catalogs.ambulances, resident?.ambulance).map((a) => (
+                  <option key={a.value} value={a.value}>
+                    {a.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Inscrito en CESFAM" error={errors.has_cesfam}>
+              <div role="radiogroup" aria-label="Inscrito en CESFAM" className="grid h-10 grid-cols-2 gap-2">
+                {[
+                  ['yes', 'Sí'],
+                  ['no', 'No'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={values.has_cesfam === value}
+                    onClick={() => set('has_cesfam')({ target: { value } })}
+                    className={
+                      values.has_cesfam === value
+                        ? 'rounded-lg border-2 border-brand-500 bg-brand-50 text-sm font-medium text-brand-800'
+                        : 'rounded-lg border border-slate-300 bg-white text-sm text-slate-700 hover:bg-slate-50'
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Lugar de atención (opcional)" htmlFor="care_place" error={errors.care_place} className="sm:col-span-2">
+              <Input
+                id="care_place"
+                maxLength={120}
+                placeholder="Ej: Clínica Las Condes, Hospital del Salvador"
+                value={values.care_place}
+                onChange={set('care_place')}
+              />
+            </Field>
+          </div>
+        </FormSection>
+
+        <FormSection title="Valoración">
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              ['dependency_level', 'Índice de Katz', 'Dependencia funcional', DEPENDENCY_LEVELS],
+              ['cognitive_level', 'Índice de Pfeiffer', 'Estado cognitivo', COGNITIVE_LEVELS],
+              ['pressure_risk', 'Escala de Norton', 'Riesgo de úlceras por presión', PRESSURE_RISKS],
+            ].map(([key, label, hint, options]) => (
+              <Field key={key} label={label} htmlFor={key} error={errors[key]} hint={hint}>
+                <Select id={key} value={values[key]} onChange={set(key)} aria-invalid={!!errors[key]}>
+                  <option value="">Selecciona…</option>
+                  {options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ))}
           </div>
         </FormSection>
 

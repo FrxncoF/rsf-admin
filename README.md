@@ -81,6 +81,18 @@ rsf-admin/
         └── pages/                   # 403 / 404
 ```
 
+## Rol SOPORTE
+
+Puede todo lo del ADMIN y además la sección **Soporte**: estado del sistema, errores 500, historial de
+accesos, respaldos de la BD (uno automático diario después de las 03:00 + manuales, se guardan
+`BACKUP_KEEP`), aviso superior para todos y catálogos editables (isapres, ambulancias). En Usuarios puede
+reiniciar claves (clave temporal que se debe cambiar al entrar) y cerrar todas las sesiones de alguien.
+Un ADMIN no ve ni administra cuentas SOPORTE, ni puede crearlas.
+
+La primera cuenta se crea al arrancar con `SUPPORT_EMAIL` / `SUPPORT_PASSWORD` del `.env`; si ese correo
+ya existe (por ejemplo tu cuenta ADMIN), se promueve a SOPORTE sin cambiar su clave.
+Para ver el commit desplegado en Soporte → Estado: `GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build`.
+
 ## API
 
 Todas bajo `/api`. Sesión por cookie `httpOnly` + `SameSite=Strict` (también acepta `Authorization: Bearer <token>`).
@@ -94,13 +106,19 @@ Todas bajo `/api`. Sesión por cookie `httpOnly` + `SameSite=Strict` (también a
 | GET | `/residents/:id` | ADMIN, CUIDADORA | Detalle |
 | POST | `/residents` | ADMIN | Crear |
 | PUT | `/residents/:id` | ADMIN | Reemplazar |
-| PATCH | `/residents/:id/status` | ADMIN | Activar / desactivar |
-| DELETE | `/residents/:id` | ADMIN | Eliminar definitivamente |
+| PATCH | `/residents/:id/status` | ADMIN | Activar / desactivar (residentes, apoderados y usuarios no se eliminan: la BD bloquea el DELETE) |
 | GET / POST / DELETE | `/residents/:id/photo` | GET ambos · resto ADMIN | Foto (JPG/PNG/WEBP, 5 MB) |
 | GET / POST / PATCH | `/users`, `/users/:id` | ADMIN | Gestión de cuentas |
-| GET / POST / PUT / DELETE | `/guardians`, `/guardians/:id` | ADMIN | Apoderados (no se elimina si tiene residentes) |
+| GET / POST / PUT | `/guardians?status=active\|inactive\|all`, `/guardians/:id` | ADMIN | Apoderados |
+| PATCH | `/guardians/:id/status` | ADMIN | Desactivar / reactivar (no si es apoderado de residentes activos) |
 | GET | `/sites` | autenticado | Sedes |
 | GET | `/indicators/uf` | autenticado | UF del día (API CMF con `APIKEYCMF`; si falla, mindicador.cl) |
+| POST / DELETE | `/residents/:id/conditions[/:itemId]` | ADMIN | Patologías (se leen en `GET /residents/:id`) |
+| POST / PUT / DELETE | `/residents/:id/medications[/:itemId]` | ADMIN | Medicamentos: nombre, dosis, horario, indicaciones |
+| GET / POST | `/daily-logs?resident_id=` | ADMIN, CUIDADORA | Fichas diarias (varias por día, no se editan) |
+| POST | `/daily-logs/:id/notes` | ADMIN, CUIDADORA | Nota de corrección sobre una ficha |
+| GET / POST | `/visits?site_id=&resident_id=` | ADMIN, CUIDADORA | Visitas (apoderado u otra persona) |
+| DELETE | `/visits/:id` | ADMIN | Eliminar visita registrada por error |
 | GET | `/health` | público | Healthcheck |
 
 ## Desarrollo local (sin Docker para el código)

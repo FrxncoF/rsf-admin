@@ -5,5 +5,5 @@ export const guardiansApi = {
   get: (id) => api.get(`/guardians/${id}`).then((r) => r.data),
   create: (body) => api.post('/guardians', body).then((r) => r.data),
   update: (id, body) => api.put(`/guardians/${id}`, body).then((r) => r.data),
-  remove: (id) => api.delete(`/guardians/${id}`),
+  setStatus: (id, isActive) => api.patch(`/guardians/${id}/status`, { is_active: isActive }).then((r) => r.data),
 };

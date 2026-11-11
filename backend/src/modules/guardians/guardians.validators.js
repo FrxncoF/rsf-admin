@@ -36,6 +36,11 @@ export const guardianSchema = z.object({
 
 export const guardianListQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
+  status: z.enum(['active', 'inactive', 'all']).default('active'),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+export const guardianStatusSchema = z.object({
+  is_active: z.boolean({ message: 'Indica el estado' }),
 });

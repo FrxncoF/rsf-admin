@@ -16,6 +16,10 @@ export const MIN_GUARDIANS = 1;
 export const MAX_GUARDIANS = 2;
 
 export const DEPENDENCY_LEVELS = ['AUTOVALENTE', 'LEVE', 'MODERADA', 'SEVERA'];
+export const HEALTH_SYSTEMS = ['FONASA', 'ISAPRE'];
+// Isapres y ambulancias: catálogos editables por SOPORTE (app_settings); se validan en el servicio
+export const COGNITIVE_LEVELS = ['INTACTA', 'LEVE', 'MODERADO', 'SEVERO']; // Pfeiffer
+export const PRESSURE_RISKS = ['MINIMO', 'MEDIO', 'ALTO', 'MUY_ALTO']; // Norton
 
 /**
  * Vínculo residente ↔ apoderado. Se elige un apoderado existente (`guardian_id`)
@@ -63,25 +67,40 @@ const residentFields = {
   room: z.string().trim().min(1, 'Ingresa la habitación').max(20),
   bed: optionalText(10),
   admission_date: isoDate,
-  dependency_level: z.enum(DEPENDENCY_LEVELS, { message: 'Selecciona el nivel de dependencia' }),
+  // Índice de Katz
+  dependency_level: z.enum(DEPENDENCY_LEVELS, { message: 'Selecciona el índice de Katz' }),
+  cognitive_level: z.enum(COGNITIVE_LEVELS, { message: 'Selecciona el índice de Pfeiffer' }),
+  pressure_risk: z.enum(PRESSURE_RISKS, { message: 'Selecciona la escala de Norton' }),
   monthly_fee_uf: ufAmount,
   payment_due_day: z.coerce
     .number({ message: 'Indica el día de pago' })
     .int('Indica el día de pago')
     .min(1, 'Entre 1 y 31')
     .max(31, 'Entre 1 y 31'),
+  ambulance: z.string({ message: 'Selecciona la ambulancia' }).trim().min(1, 'Selecciona la ambulancia').max(30),
+  has_cesfam: z.boolean({ message: 'Indica si está inscrito en CESFAM' }),
+  care_place: optionalText(120),
+  health_system: z.enum(HEALTH_SYSTEMS, { message: 'Selecciona la previsión' }),
+  isapre: z.string().trim().max(30).nullish(),
   guardians: guardiansSchema,
 };
 
 const admissionAfterBirth = (r) => r.admission_date >= r.birth_date;
 const admissionIssue = { message: 'El ingreso no puede ser antes del nacimiento', path: ['admission_date'] };
 
+const isapreGiven = (r) => r.health_system !== 'ISAPRE' || Boolean(r.isapre);
+const isapreIssue = { message: 'Selecciona la isapre', path: ['isapre'] };
+// Con Fonasa no se guarda isapre
+const normalizeIsapre = (r) => ({ ...r, isapre: r.health_system === 'ISAPRE' ? r.isapre : null });
+
 export const createResidentSchema = z
   .object({
     ...residentFields,
     is_active: z.boolean().default(true),
   })
-  .refine(admissionAfterBirth, admissionIssue);
+  .refine(admissionAfterBirth, admissionIssue)
+  .refine(isapreGiven, isapreIssue)
+  .transform(normalizeIsapre);
 
 // PUT = reemplazo completo del recurso
 export const updateResidentSchema = z
@@ -89,7 +108,9 @@ export const updateResidentSchema = z
     ...residentFields,
     is_active: z.boolean({ message: 'Indica el estado' }),
   })
-  .refine(admissionAfterBirth, admissionIssue);
+  .refine(admissionAfterBirth, admissionIssue)
+  .refine(isapreGiven, isapreIssue)
+  .transform(normalizeIsapre);
 
 export const statusSchema = z.object({
   is_active: z.boolean({ message: 'Indica el estado' }),
@@ -102,4 +123,18 @@ export const listQuerySchema = z.object({
   sort: z.enum(['name', 'room', 'created']).default('name'),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(25),
+});
+
+// --- Datos clínicos (patologías y medicamentos) ---
+const text = (max, message) => z.string({ message }).trim().min(1, message).max(max, `Máximo ${max} caracteres`);
+
+export const conditionSchema = z.object({
+  name: text(120, 'Ingresa la patología'),
+});
+
+export const medicationSchema = z.object({
+  name: text(120, 'Ingresa el medicamento'),
+  dose: text(60, 'Ingresa la dosis (ej. 50 mg)'),
+  schedule: optionalText(80),
+  instructions: optionalText(200),
 });

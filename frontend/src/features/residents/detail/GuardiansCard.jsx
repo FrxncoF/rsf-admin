@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import { Mail, MapPin, Phone, UserRound } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { formatRut } from '@/lib/rut';
@@ -10,7 +11,7 @@ export default function GuardiansCard({ guardians = [] }) {
       <CardHeader>
         <CardTitle>Apoderados</CardTitle>
       </CardHeader>
-      <CardContent className="grid gap-3 sm:grid-cols-2">
+      <CardContent className={cn('grid gap-3', guardians.length > 1 && 'sm:grid-cols-2')}>
         {guardians.map((g) => (
           <div key={g.id} className="rounded-xl border border-slate-200 p-4">
             <div className="flex items-start gap-3">

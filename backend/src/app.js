@@ -11,6 +11,10 @@ import { usersRouter } from './modules/users/users.routes.js';
 import { guardiansRouter } from './modules/guardians/guardians.routes.js';
 import { sitesRouter } from './modules/sites/sites.routes.js';
 import { indicatorsRouter } from './modules/indicators/indicators.routes.js';
+import { dailyLogsRouter } from './modules/daily-logs/dailyLogs.routes.js';
+import { visitsRouter } from './modules/visits/visits.routes.js';
+import { settingsRouter } from './modules/settings/settings.routes.js';
+import { supportRouter } from './modules/support/support.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 export function createApp() {
@@ -44,6 +48,10 @@ export function createApp() {
   api.use('/guardians', guardiansRouter);
   api.use('/sites', sitesRouter);
   api.use('/indicators', indicatorsRouter);
+  api.use('/daily-logs', dailyLogsRouter);
+  api.use('/visits', visitsRouter);
+  api.use('/settings', settingsRouter);
+  api.use('/support', supportRouter);
 
   app.use('/api', api);
   app.use(notFoundHandler);

@@ -1,5 +1,5 @@
-// Catálogos de la bitácora diaria. Los `value` son los códigos que se guardarán en BD (Fase 2);
-// los `label` son solo de presentación y pueden cambiar sin migrar datos.
+// Catálogos de la ficha diaria. Los `value` son los códigos guardados en BD (validados en
+// backend/src/modules/daily-logs/dailyLogs.validators.js); los `label` son solo de presentación.
 
 export const SECTIONS = {
   vitals: 'Signos vitales',
@@ -127,7 +127,6 @@ export const ALERTS = [
   { value: 'dolor', label: 'Dolor', emoji: '🤕', critical: true },
   { value: 'vomitos', label: 'Vómitos', emoji: '🤢', critical: true },
   { value: 'fiebre', label: 'Fiebre', emoji: '🌡️', critical: true },
-  { value: 'visita', label: 'Visita familiar', emoji: '👨‍👩‍👧', critical: false },
 ];
 
 export const NOTES_MAX = 150;
@@ -142,7 +141,6 @@ export const VITALS = [
   { key: 'fc', label: 'FC', unit: 'lpm', min: 20, max: 250, low: 50, high: 100 },
   { key: 'temp', label: 'Temp.', unit: '°C', min: 30, max: 43, low: 35.5, high: 37.5, decimal: true },
   { key: 'spo2', label: 'SpO₂', unit: '%', min: 50, max: 100, low: 92 },
-  { key: 'hgt', label: 'HGT', unit: 'mg/dL', min: 20, max: 600, low: 70, high: 180 },
 ];
 
 export const labelOf = (options, value) => options.find((o) => o.value === value)?.label ?? value;

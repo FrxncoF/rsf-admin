@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useId, useState } from 'react';
-import { Pencil, Plus, Search, UserCog } from 'lucide-react';
+import { KeyRound, LogOut, Pencil, Plus, Search, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
-import { Dialog } from '@/components/ui/Dialog';
+import { ConfirmDialog, Dialog } from '@/components/ui/Dialog';
 import { Field, Input, Select } from '@/components/ui/Form';
 import { Alert, EmptyState, Spinner } from '@/components/ui/Feedback';
 import { ROLE_LABELS } from '@/components/layout/navigation';
@@ -11,9 +11,14 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { api } from '@/lib/api';
 import { formatDateTime } from '@/lib/utils';
 
-/** Gestión mínima de cuentas (ADMIN): crear cuidadoras, cambiar rol/estado y restablecer contraseña. */
+/**
+ * Gestión de cuentas. ADMIN administra cuidadoras y administradoras (no ve cuentas SOPORTE);
+ * SOPORTE además crea cuentas SOPORTE, reinicia claves y cierra sesiones.
+ */
 export default function UsersPage() {
-  const { user: me } = useAuth();
+  const { user: me, isSupport } = useAuth();
+  const [action, setAction] = useState(null); // { type: 'reset' | 'revoke', user, temporary? }
+  const [actionLoading, setActionLoading] = useState(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,6 +40,26 @@ export default function UsersPage() {
   }, []);
 
   useEffect(load, [load]);
+
+  async function runAction() {
+    setActionLoading(true);
+    setError('');
+    try {
+      if (action.type === 'reset') {
+        const { temporary_password: temporary } = await api.post(`/users/${action.user.id}/reset-password`);
+        setAction((a) => ({ ...a, temporary }));
+        load();
+      } else {
+        await api.post(`/users/${action.user.id}/revoke-sessions`);
+        setAction(null);
+      }
+    } catch (err) {
+      setError(err.message);
+      setAction(null);
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
@@ -77,13 +102,38 @@ export default function UsersPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate font-medium text-slate-900">{u.full_name}</p>
-                    <Badge variant={u.role === 'ADMIN' ? 'brand' : 'default'}>{ROLE_LABELS[u.role]}</Badge>
+                    <Badge variant={u.role === 'SOPORTE' ? 'warning' : u.role === 'ADMIN' ? 'brand' : 'default'}>
+                      {ROLE_LABELS[u.role]}
+                    </Badge>
+                    {u.must_change_password && <Badge variant="muted">Clave temporal</Badge>}
                     {!u.is_active && <Badge variant="muted">Desactivado</Badge>}
                     {u.id === me.id && <span className="text-xs text-slate-400">(tú)</span>}
                   </div>
                   <p className="truncate text-sm text-slate-500">{u.email}</p>
                   <p className="text-xs text-slate-400">Último acceso: {formatDateTime(u.last_login_at)}</p>
                 </div>
+                {isSupport && u.id !== me.id && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Reiniciar contraseña"
+                      aria-label="Reiniciar contraseña"
+                      onClick={() => setAction({ type: 'reset', user: u })}
+                    >
+                      <KeyRound className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      title="Cerrar todas sus sesiones"
+                      aria-label="Cerrar sesiones"
+                      onClick={() => setAction({ type: 'revoke', user: u })}
+                    >
+                      <LogOut className="size-4" />
+                    </Button>
+                  </>
+                )}
                 <Button variant="ghost" size="icon" aria-label="Editar" onClick={() => setDialog({ open: true, user: u })}>
                   <Pencil className="size-4" />
                 </Button>
@@ -93,9 +143,39 @@ export default function UsersPage() {
         )}
       </Card>
 
+      <ConfirmDialog
+        open={Boolean(action) && !action.temporary}
+        onClose={() => setAction(null)}
+        onConfirm={runAction}
+        loading={actionLoading}
+        destructive
+        title={action?.type === 'reset' ? 'Reiniciar contraseña' : 'Cerrar sesiones'}
+        confirmLabel={action?.type === 'reset' ? 'Reiniciar' : 'Cerrar sesiones'}
+        description={
+          action &&
+          (action.type === 'reset'
+            ? `Se generará una clave temporal para ${action.user.full_name}. Deberá cambiarla al entrar y se cerrarán sus sesiones abiertas.`
+            : `${action.user.full_name} tendrá que volver a ingresar en todos sus dispositivos.`)
+        }
+      />
+
+      <Dialog
+        open={Boolean(action?.temporary)}
+        onClose={() => setAction(null)}
+        title="Clave temporal"
+        description={action?.user && `Entrégasela a ${action.user.full_name}. Solo se muestra esta vez.`}
+        footer={<Button onClick={() => setAction(null)}>Listo</Button>}
+      >
+        <p className="select-all rounded-lg bg-slate-100 px-4 py-3 text-center font-mono text-2xl tracking-widest text-slate-900">
+          {action?.temporary}
+        </p>
+        <p className="mt-3 text-xs text-slate-500">Al ingresar con ella, el sistema le pedirá crear una contraseña nueva.</p>
+      </Dialog>
+
       <UserFormDialog
         open={dialog.open}
         user={dialog.user}
+        canAssignSupport={isSupport}
         isSelf={dialog.user?.id === me.id}
         onClose={() => setDialog((d) => ({ ...d, open: false }))}
         onSaved={() => {
@@ -109,7 +189,7 @@ export default function UsersPage() {
 
 const EMPTY = { full_name: '', email: '', role: 'CUIDADORA', password: '', is_active: true };
 
-function UserFormDialog({ open, user, isSelf, onClose, onSaved }) {
+function UserFormDialog({ open, user, isSelf, canAssignSupport, onClose, onSaved }) {
   const isEdit = Boolean(user);
   const formId = useId();
   const [values, setValues] = useState(EMPTY);
@@ -175,6 +255,7 @@ function UserFormDialog({ open, user, isSelf, onClose, onSaved }) {
           <Select id="u_role" value={values.role} onChange={set('role')} disabled={isSelf}>
             <option value="CUIDADORA">Cuidadora</option>
             <option value="ADMIN">Administradora</option>
+            {canAssignSupport && <option value="SOPORTE">Soporte</option>}
           </Select>
         </Field>
         <Field

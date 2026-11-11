@@ -26,6 +26,15 @@ export const env = Object.freeze({
   maxPhotoBytes: 5 * 1024 * 1024,
   // API key de la CMF para el valor de la UF; sin ella (o si falla) se usa mindicador.cl
   cmfApiKey: process.env.APIKEYCMF || '',
+  backupDir: path.resolve(process.env.BACKUP_DIR || 'backups'),
+  backupKeep: Number(process.env.BACKUP_KEEP || 14),
+  appVersion: process.env.APP_VERSION || '',
+  // Cuenta SOPORTE inicial (opcional). Si el correo ya existe, se promueve a SOPORTE.
+  support: {
+    email: (process.env.SUPPORT_EMAIL || '').trim().toLowerCase(),
+    password: process.env.SUPPORT_PASSWORD || '',
+    name: process.env.SUPPORT_NAME || 'Soporte',
+  },
   admin: {
     email: process.env.ADMIN_EMAIL || '',
     password: process.env.ADMIN_PASSWORD || '',

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Power, Search, Trash2, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Eye, Pencil, Plus, Power, Search, Users } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input, Select } from '@/components/ui/Form';
 import { Badge } from '@/components/ui/Badge';
@@ -40,7 +40,7 @@ export default function AdminResidentsView() {
   });
 
   const [formState, setFormState] = useState({ open: false, resident: null });
-  const [confirm, setConfirm] = useState(null); // { type: 'delete' | 'status', resident }
+  const [confirm, setConfirm] = useState(null); // { resident } → activar / desactivar
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState('');
 
@@ -49,12 +49,11 @@ export default function AdminResidentsView() {
   const closeForm = () => setFormState((s) => ({ ...s, open: false }));
 
   async function runConfirm() {
-    const { type, resident } = confirm;
+    const { resident } = confirm;
     setActionLoading(true);
     setActionError('');
     try {
-      if (type === 'delete') await residentsApi.remove(resident.id);
-      else await residentsApi.setStatus(resident.id, !resident.is_active);
+      await residentsApi.setStatus(resident.id, !resident.is_active);
       setConfirm(null);
       reload();
     } catch (err) {
@@ -83,19 +82,9 @@ export default function AdminResidentsView() {
         size="icon"
         title={resident.is_active ? 'Desactivar' : 'Activar'}
         aria-label={resident.is_active ? 'Desactivar' : 'Activar'}
-        onClick={() => setConfirm({ type: 'status', resident })}
+        onClick={() => setConfirm({ resident })}
       >
         <Power className={resident.is_active ? 'size-4 text-accent-600' : 'size-4 text-slate-400'} />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        title="Eliminar"
-        aria-label="Eliminar"
-        className="hover:bg-red-50 hover:text-red-600"
-        onClick={() => setConfirm({ type: 'delete', resident })}
-      >
-        <Trash2 className="size-4" />
       </Button>
     </div>
   );
@@ -288,22 +277,14 @@ export default function AdminResidentsView() {
         onClose={() => setConfirm(null)}
         onConfirm={runConfirm}
         loading={actionLoading}
-        destructive={confirm?.type === 'delete' || confirm?.resident.is_active}
-        title={
-          confirm?.type === 'delete'
-            ? 'Eliminar residente'
-            : confirm?.resident.is_active
-              ? 'Desactivar residente'
-              : 'Activar residente'
-        }
-        confirmLabel={confirm?.type === 'delete' ? 'Eliminar definitivamente' : confirm?.resident.is_active ? 'Desactivar' : 'Activar'}
+        destructive={confirm?.resident.is_active}
+        title={confirm?.resident.is_active ? 'Desactivar residente' : 'Activar residente'}
+        confirmLabel={confirm?.resident.is_active ? 'Desactivar' : 'Activar'}
         description={
           confirm &&
-          (confirm.type === 'delete'
-            ? `Se eliminará a ${confirm.resident.first_name} ${confirm.resident.last_name} de forma permanente. Si solo dejó la residencia, es preferible desactivarlo.`
-            : confirm.resident.is_active
-              ? `${confirm.resident.first_name} ${confirm.resident.last_name} dejará de aparecer para las cuidadoras y su cama quedará libre.`
-              : `${confirm.resident.first_name} ${confirm.resident.last_name} volverá a aparecer para las cuidadoras.`)
+          (confirm.resident.is_active
+            ? `${confirm.resident.first_name} ${confirm.resident.last_name} dejará de aparecer para las cuidadoras y su cama quedará libre. Su historial se conserva y se puede reactivar.`
+            : `${confirm.resident.first_name} ${confirm.resident.last_name} volverá a aparecer para las cuidadoras.`)
         }
       />
     </div>

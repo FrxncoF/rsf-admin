@@ -5,7 +5,7 @@ import { escapeLike } from '../../utils/sql.js';
 
 // Residentes vinculados al apoderado, con el parentesco de cada vínculo
 const COLUMNS = `
-  g.id, g.full_name, g.rut, g.phone, g.email, g.address, g.created_at, g.updated_at,
+  g.id, g.full_name, g.rut, g.phone, g.email, g.address, g.is_active, g.created_at, g.updated_at,
   COALESCE((
     SELECT json_agg(json_build_object(
       'id', r.id, 'first_name', r.first_name, 'last_name', r.last_name, 'is_active', r.is_active,
@@ -18,9 +18,11 @@ const COLUMNS = `
     WHERE rg.guardian_id = g.id
   ), '[]'::json) AS residents`;
 
-export async function listGuardians({ search, page, pageSize }) {
+export async function listGuardians({ search, status, page, pageSize }) {
   const where = [];
   const params = [];
+  if (status === 'active') where.push('g.is_active = TRUE');
+  if (status === 'inactive') where.push('g.is_active = FALSE');
 
   if (search) {
     params.push(`%${escapeLike(search.toLowerCase())}%`);
@@ -83,11 +85,19 @@ export async function updateGuardian(id, data, userId) {
   return getGuardian(id);
 }
 
-export async function deleteGuardian(id) {
-  const { rows } = await query('SELECT count(*)::int AS n FROM resident_guardians WHERE guardian_id = $1', [id]);
-  if (rows[0].n > 0) {
-    throw AppError.conflict('No se puede eliminar: tiene residentes asociados. Primero desvincúlalo desde cada residente.');
+/** Desactivar no borra al apoderado: solo deja de aparecer en búsquedas y no se puede asignar. */
+export async function setGuardianStatus(id, isActive, userId) {
+  if (!isActive) {
+    const { rows } = await query(
+      `SELECT count(*)::int AS n FROM resident_guardians rg JOIN residents r ON r.id = rg.resident_id
+        WHERE rg.guardian_id = $1 AND r.is_active`,
+      [id],
+    );
+    if (rows[0].n > 0) {
+      throw AppError.conflict('No se puede desactivar: es apoderado de residentes activos. Primero reemplázalo en cada residente.');
+    }
   }
-  const { rowCount } = await query('DELETE FROM guardians WHERE id = $1', [id]);
+  const { rowCount } = await query('UPDATE guardians SET is_active = $1, updated_by = $2 WHERE id = $3', [isActive, userId, id]);
   if (rowCount === 0) throw AppError.notFound('Apoderado no encontrado');
+  return getGuardian(id);
 }

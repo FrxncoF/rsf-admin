@@ -1,7 +1,5 @@
-import { Check, History, Minus, Plus } from 'lucide-react';
-import { Card } from '@/components/ui/Card';
+import { Check, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { formatTime, shortName } from './useDailyLog';
 
 // Color de cada opción cuando está seleccionada
 const TONES = {
@@ -139,34 +137,17 @@ export function FieldGroup({ title, aside, children, className }) {
   );
 }
 
-/** Tarjeta de sección con indicador de última edición (trazabilidad por sección). */
-export function SectionCard({ id, icon: Icon, title, lastEdit, onShowHistory, children }) {
+/** Sección dentro de la ficha: título con ícono y separador superior (no es una tarjeta aparte). */
+export function FormSection({ id, icon: Icon, title, children }) {
   return (
-    <Card id={id} className="scroll-mt-60 overflow-hidden lg:scroll-mt-40">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50/60 px-4 py-3 sm:px-5">
-        <h3 className="flex items-center gap-2 font-semibold text-slate-900">
-          <span className="flex size-8 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
-            <Icon className="size-4.5" />
-          </span>
-          {title}
-        </h3>
-        {lastEdit ? (
-          <button
-            type="button"
-            onClick={onShowHistory}
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-right text-xs text-slate-500 hover:bg-white hover:text-brand-700"
-            title="Ver historial de esta sección"
-          >
-            <History className="size-3.5 shrink-0" />
-            <span>
-              {formatTime(lastEdit.at)} · <span className="font-medium">{shortName(lastEdit.by)}</span>
-            </span>
-          </button>
-        ) : (
-          <span className="text-xs text-slate-400">Sin registros hoy</span>
-        )}
-      </div>
-      <div className="space-y-6 p-4 sm:p-5">{children}</div>
-    </Card>
+    <section id={id} className="scroll-mt-24 space-y-5 border-t border-slate-200 px-4 py-5 first:border-t-0 sm:px-6">
+      <h3 className="flex items-center gap-2 font-semibold text-slate-900">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-brand-100 text-brand-700">
+          <Icon className="size-4.5" />
+        </span>
+        {title}
+      </h3>
+      {children}
+    </section>
   );
 }
