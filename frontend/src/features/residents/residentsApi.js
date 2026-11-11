@@ -9,7 +9,8 @@ export const residentsApi = {
   uploadPhoto: (id, file) => {
     const form = new FormData();
     form.append('photo', file);
-    return api.post(`/residents/${id}/photo`, form).then((r) => r.data);
+    // La foto ya llega achicada (~100–400 KB): sube en 1–3 s por WiFi; 15 s es el máximo de espera
+    return api.post(`/residents/${id}/photo`, form, { timeoutMs: 15_000 }).then((r) => r.data);
   },
   removePhoto: (id) => api.delete(`/residents/${id}/photo`).then((r) => r.data),
   addCondition: (id, name) => api.post(`/residents/${id}/conditions`, { name }).then((r) => r.data),

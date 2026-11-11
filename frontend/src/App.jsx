@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, ROLES } from '@/features/auth/AuthContext';
-import { AppConfigProvider, TopBanner } from '@/features/app-config/AppConfigContext';
+import { AppConfigProvider } from '@/features/app-config/AppConfigContext';
 import { GuestOnly, RequireAuth, RequireRole } from '@/features/auth/RouteGuards';
 import { FullScreenLoader } from '@/components/ui/Feedback';
 import AppLayout from '@/components/layout/AppLayout';
@@ -22,7 +22,6 @@ export default function App() {
     <BrowserRouter>
       <AppConfigProvider>
       <AuthProvider>
-        <TopBanner />
         <Suspense fallback={<FullScreenLoader />}>
           <Routes>
             <Route element={<GuestOnly />}>
