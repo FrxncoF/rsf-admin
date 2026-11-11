@@ -33,6 +33,12 @@ residentsRouter.get('/', async (req, res) => {
   res.json(await residents.listResidents(filters, { isAdmin: isAdmin(req) }));
 });
 
+// Cumpleaños de hoy (hora de Chile) entre los residentes activos; antes de '/:id'
+residentsRouter.get('/birthdays/today', async (req, res) => {
+  const { site_id: siteId } = parse(birthdayQuerySchema, req.query);
+  res.json({ data: await residents.birthdaysToday(siteId) });
+});
+
 residentsRouter.get('/:id', async (req, res) => {
   const id = parseId(req.params);
   res.json({ data: await residents.getResident(id, { isAdmin: isAdmin(req) }) });
@@ -73,6 +79,8 @@ residentsRouter.delete('/:id/photo', adminOnly, async (req, res) => {
 });
 
 // --- Patologías y medicamentos (lectura en GET /:id; escritura ADMIN) ---
+const birthdayQuerySchema = z.object({ site_id: z.coerce.number().int().positive().optional() });
+
 const subParams = z.object({ id: z.string().uuid(), itemId: z.string().uuid() });
 function parseSub(params) {
   const result = subParams.safeParse(params);

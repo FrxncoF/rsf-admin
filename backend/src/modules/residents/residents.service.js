@@ -298,3 +298,31 @@ export async function deleteMedication(residentId, medicationId) {
   if (rowCount === 0) throw AppError.notFound('Medicamento no encontrado');
   return getResident(residentId, { isAdmin: true });
 }
+
+// ---------------------------------------------------------------------
+// Cumpleaños
+// ---------------------------------------------------------------------
+
+/**
+ * Residentes activos que están de cumpleaños hoy (fecha de Chile).
+ * Los nacidos un 29 de febrero lo celebran el 28 en años no bisiestos.
+ */
+export async function birthdaysToday(siteId) {
+  const { rows } = await query(
+    `WITH today AS (SELECT (now() AT TIME ZONE 'America/Santiago')::date AS d)
+     SELECT r.id, r.first_name, r.last_name, s.name AS site_name, r.room, r.bed,
+            date_part('year', age(today.d, r.birth_date))::int AS age
+       FROM residents r JOIN sites s ON s.id = r.site_id, today
+      WHERE r.is_active
+        AND ($1::smallint IS NULL OR r.site_id = $1)
+        AND (
+          to_char(r.birth_date, 'MM-DD') = to_char(today.d, 'MM-DD')
+          OR (to_char(r.birth_date, 'MM-DD') = '02-29' AND to_char(today.d, 'MM-DD') = '02-28'
+              AND NOT (date_part('year', today.d)::int % 4 = 0
+                       AND (date_part('year', today.d)::int % 100 <> 0 OR date_part('year', today.d)::int % 400 = 0)))
+        )
+      ORDER BY r.first_name, r.last_name`,
+    [siteId ?? null],
+  );
+  return rows;
+}

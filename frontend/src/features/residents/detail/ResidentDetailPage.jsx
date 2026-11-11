@@ -22,7 +22,7 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { formatRut } from '@/lib/rut';
 import { ageFrom, formatDate, roomLabel } from '@/lib/utils';
 import { formatClp, formatUf, formatUfValue, useUf } from '@/lib/money';
-import { dependencyOf } from '../constants';
+import { dependencyOf, RELATIONSHIP_PENDING, ROOM_PENDING } from '../constants';
 import { residentsApi } from '../residentsApi';
 import { ResidentAvatar } from '../ResidentAvatar';
 import ResidentFormDialog from '../admin/ResidentFormDialog';
@@ -195,7 +195,15 @@ const REQUIRED_FIELDS = [
   ['cognitive_level', 'Pfeiffer'],
   ['pressure_risk', 'Norton'],
 ];
-const missingFields = (resident) => REQUIRED_FIELDS.filter(([key]) => resident[key] == null).map(([, label]) => label);
+function missingFields(resident) {
+  const missing = REQUIRED_FIELDS.filter(([key]) => resident[key] == null).map(([, label]) => label);
+  // Valores provisorios de importaciones (ver constants.js)
+  if (resident.room === ROOM_PENDING) missing.unshift('habitación');
+  const guardians = resident.guardians ?? [];
+  if (guardians.some((g) => g.relationship === RELATIONSHIP_PENDING)) missing.push('parentesco del apoderado');
+  if (guardians.some((g) => !g.phone)) missing.push('teléfono del apoderado');
+  return missing;
+}
 
 /** Mensualidad en UF y su equivalente en pesos con la UF del día (solo ADMIN). */
 function PaymentCard({ resident }) {

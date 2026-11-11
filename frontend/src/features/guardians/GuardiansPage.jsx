@@ -171,9 +171,15 @@ function GuardianCard({ guardian: g, onEdit, onToggle }) {
       </div>
 
       <div className="mt-2 space-y-1 text-sm text-slate-600">
-        <a href={phoneHref(g.phone)} className="flex items-center gap-2 font-medium text-brand-700 hover:underline">
-          <Phone className="size-4 shrink-0" /> {formatPhone(g.phone)}
-        </a>
+        {g.phone ? (
+          <a href={phoneHref(g.phone)} className="flex items-center gap-2 font-medium text-brand-700 hover:underline">
+            <Phone className="size-4 shrink-0" /> {formatPhone(g.phone)}
+          </a>
+        ) : (
+          <p className="flex items-center gap-2 font-medium text-amber-700">
+            <Phone className="size-4 shrink-0" /> Sin teléfono
+          </p>
+        )}
         {g.email && (
           <a href={`mailto:${g.email}`} className="flex items-center gap-2 hover:text-brand-700">
             <Mail className="size-4 shrink-0" /> <span className="truncate">{g.email}</span>

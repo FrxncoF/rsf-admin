@@ -200,7 +200,7 @@ export default function AdminResidentsView() {
                               {r.guardians.length > 1 && <span className="text-xs text-slate-400"> +1</span>}
                             </p>
                             <p className="text-xs text-slate-500">
-                              {r.guardians[0].relationship} · {formatPhone(r.guardians[0].phone)}
+                              {r.guardians[0].relationship} · {formatPhone(r.guardians[0].phone) || 'sin teléfono'}
                             </p>
                           </div>
                         ) : (
