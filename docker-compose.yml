@@ -42,6 +42,8 @@ services:
       JWT_EXPIRES_HOURS: ${JWT_EXPIRES_HOURS:-12}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
+      # Proxies delante del backend: 1 = Nginx (local); 2 = Caddy + Nginx (producción)
+      TRUST_PROXY: ${TRUST_PROXY:-1}
       APIKEYCMF: ${APIKEYCMF:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}

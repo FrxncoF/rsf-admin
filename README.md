@@ -131,14 +131,33 @@ cd frontend && npm install && npm run dev     # http://localhost:5173 (proxy /ap
 
 ## Despliegue en DigitalOcean (Droplet)
 
-1. Droplet Ubuntu con Docker (imagen "Docker" del Marketplace).
-2. Clonar el repo, crear `.env` con secretos reales y `docker compose up --build -d`.
-3. **HTTPS es obligatorio para producción**: la PWA (service worker / "Agregar a pantalla de inicio")
-   solo funciona en HTTPS fuera de `localhost`, y la cookie de sesión debe ir con `COOKIE_SECURE=true`.
-   Opción simple: apuntar un dominio al Droplet y poner Caddy delante (`HTTP_PORT=8080` y Caddy
-   haciendo `reverse_proxy localhost:8080` con certificado automático).
-4. Firewall: abrir solo 22, 80 y 443. La BD y el backend no exponen puertos.
-5. Respaldos: volumen `pgdata` (`pg_dump`) y volumen `uploads` (fotos).
+En el servidor conviven la landing y el admin:
+
+```
+/srv/rsf/
+├── landing/   ← rsf-landing (estático, servido por el Nginx de Ubuntu)
+└── admin/     ← este repo (Docker), con su .env de producción
+```
+
+El **Nginx de Ubuntu** recibe `https://admin.residenciasanfrancisco.cl` (certificado con certbot) y lo
+reenvía al contenedor frontend en `127.0.0.1:8080`. Ningún contenedor queda expuesto a Internet.
+El `docker-compose.override.yml` es solo de desarrollo y no va al servidor.
+
+1. **DNS**: registro `A` de `admin.residenciasanfrancisco.cl` → IP del Droplet.
+2. **Código**: `cd /srv/rsf && git clone https://github.com/FrxncoF/rsf-admin.git admin` (rama `main`).
+3. **`.env`** en `/srv/rsf/admin` con secretos nuevos (no los de desarrollo), además de
+   `COOKIE_SECURE=true`, `TRUST_PROXY=2`, `ADMIN_LOCAL_PORT=8080` y `CORS_ORIGINS=` vacío.
+4. **Levantar**:
+   `GIT_SHA=$(git rev-parse --short HEAD) docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build`
+5. **Nginx + HTTPS**: seguir los comandos al inicio de `deploy/nginx-admin.conf` (copiar el sitio,
+   `nginx -t`, recargar y `certbot --nginx -d admin.residenciasanfrancisco.cl`).
+6. **Datos** (opcional, desde un respaldo): copiar el `.dump` con `scp` a `backups/` y luego
+   `docker compose cp backups/ARCHIVO.dump db:/tmp/rsf.dump`,
+   `docker compose exec db sh -c 'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists /tmp/rsf.dump'`
+   y reiniciar el backend.
+7. **Actualizar** después: `git pull` y repetir el paso 4 (las migraciones se aplican solas).
+
+Respaldos: Soporte → Respaldos (diario automático) en el volumen `backups`; fotos en el volumen `uploads`.
 
 ## Siguiente fase
 
