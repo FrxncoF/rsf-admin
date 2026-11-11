@@ -46,3 +46,8 @@ export function healthLabel({ health_system: system, isapre }, isapres = []) {
   }
   return null;
 }
+
+// Valores provisorios usados al importar planillas: la ficha los muestra en "Faltan datos"
+// y el formulario los deja en blanco para obligar a completarlos.
+export const ROOM_PENDING = 'Por asignar';
+export const RELATIONSHIP_PENDING = 'Por confirmar';

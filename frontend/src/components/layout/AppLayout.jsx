@@ -5,6 +5,7 @@ import { DesktopSidebar } from './Sidebar';
 import { MobileDrawer } from './MobileDrawer';
 import { SiteSelector, UfBadge } from './TopBar';
 import { SiteProvider } from '@/features/sites/SiteContext';
+import { BirthdayBanner } from '@/features/residents/BirthdayBanner';
 import { useAuth } from '@/features/auth/AuthContext';
 
 const COLLAPSE_KEY = 'rsf:sidebar-collapsed';
@@ -26,6 +27,7 @@ export default function AppLayout() {
 
   return (
     <SiteProvider>
+      <BirthdayBanner />
       <div className="flex min-h-dvh">
         <DesktopSidebar collapsed={collapsed} onToggleCollapse={toggleCollapse} />
         <MobileDrawer open={drawerOpen} onClose={closeDrawer} />

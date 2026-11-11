@@ -17,7 +17,15 @@ import {
 } from '@/features/guardians/GuardianFields';
 import { residentsApi } from '../residentsApi';
 import { ResidentAvatar } from '../ResidentAvatar';
-import { COGNITIVE_LEVELS, DEPENDENCY_LEVELS, HEALTH_SYSTEMS, PAYMENT_DAYS, PRESSURE_RISKS } from '../constants';
+import {
+  COGNITIVE_LEVELS,
+  DEPENDENCY_LEVELS,
+  HEALTH_SYSTEMS,
+  PAYMENT_DAYS,
+  PRESSURE_RISKS,
+  RELATIONSHIP_PENDING,
+  ROOM_PENDING,
+} from '../constants';
 import { catalogOptions, useAppConfig } from '@/features/app-config/AppConfigContext';
 
 export const MAX_GUARDIANS = 2;
@@ -100,7 +108,11 @@ function validate(values) {
   return errors;
 }
 
-const toFormLink = (g) => ({ ...EMPTY_LINK, selected: g, relationship: g.relationship ?? '' });
+const toFormLink = (g) => ({
+  ...EMPTY_LINK,
+  selected: g,
+  relationship: !g.relationship || g.relationship === RELATIONSHIP_PENDING ? '' : g.relationship,
+});
 
 const toPayloadLink = (link) =>
   link.mode === 'existing'
@@ -129,6 +141,7 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
             ...EMPTY,
             ...resident,
             rut: formatRut(resident.rut),
+            room: resident.room === ROOM_PENDING ? '' : resident.room,
             bed: resident.bed ?? '',
             admission_date: resident.admission_date ?? '',
             dependency_level: resident.dependency_level ?? '',

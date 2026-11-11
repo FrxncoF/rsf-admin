@@ -30,12 +30,18 @@ export default function GuardiansCard({ guardians = [] }) {
 
             <div className="mt-3 space-y-1.5 text-sm">
               {/* Botón grande para llamar directo desde el celular */}
-              <a
-                href={phoneHref(g.phone)}
-                className="flex h-11 items-center gap-2 rounded-lg bg-brand-600 px-3 font-medium text-white hover:bg-brand-700 active:bg-brand-800"
-              >
-                <Phone className="size-4" /> {formatPhone(g.phone)}
-              </a>
+              {g.phone ? (
+                <a
+                  href={phoneHref(g.phone)}
+                  className="flex h-11 items-center gap-2 rounded-lg bg-brand-600 px-3 font-medium text-white hover:bg-brand-700 active:bg-brand-800"
+                >
+                  <Phone className="size-4" /> {formatPhone(g.phone)}
+                </a>
+              ) : (
+                <p className="flex h-11 items-center gap-2 rounded-lg bg-amber-50 px-3 text-amber-800 ring-1 ring-amber-200">
+                  <Phone className="size-4" /> Sin teléfono registrado
+                </p>
+              )}
               {g.email && (
                 <a href={`mailto:${g.email}`} className="flex items-center gap-2 px-1 py-1 text-slate-600 hover:text-brand-700">
                   <Mail className="size-4 shrink-0" /> <span className="truncate">{g.email}</span>
