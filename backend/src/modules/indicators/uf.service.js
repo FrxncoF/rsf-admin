@@ -33,15 +33,28 @@ async function fromMindicador() {
   return { value: Number(latest.valor), date, source: 'Banco Central (vía mindicador.cl)' };
 }
 
+// Diagnóstico para la sección Soporte
+const status = { lastCmfError: null, lastError: null };
+
 async function fetchUf() {
   if (env.cmfApiKey) {
     try {
       return await fromCmf();
     } catch (err) {
+      status.lastCmfError = { at: new Date().toISOString(), message: err.message };
       console.warn('[uf] CMF falló, se usa mindicador.cl:', err.message);
     }
   }
   return fromMindicador();
+}
+
+export function getUfStatus() {
+  return {
+    cmfConfigured: Boolean(env.cmfApiKey),
+    cached: cache ? { ...publicView(cache), fetchedAt: new Date(cache.fetchedAtMs).toISOString() } : null,
+    lastCmfError: status.lastCmfError,
+    lastError: status.lastError,
+  };
 }
 
 let cache = null; // { value, date, source, fetchedAtMs }
@@ -64,6 +77,7 @@ export async function getUf() {
   try {
     return publicView(await inflight);
   } catch (err) {
+    status.lastError = { at: new Date().toISOString(), message: err.message };
     console.warn('[uf] no se pudo actualizar:', err.message);
     if (cache) return { ...publicView(cache), stale: true };
     throw new AppError(503, 'No se pudo obtener el valor de la UF');

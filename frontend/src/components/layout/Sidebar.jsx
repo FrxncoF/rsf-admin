@@ -72,7 +72,7 @@ export function SidebarContent({ collapsed = false, onNavigate, onToggleCollapse
         ))}
       </nav>
 
-      {showUf && user.role === 'ADMIN' && <UfBadge className="mx-3 mb-3 flex-wrap" />}
+      {showUf && user.role !== 'CUIDADORA' && <UfBadge className="mx-3 mb-3 flex-wrap" />}
 
       <div className="space-y-1 border-t border-slate-200 p-3 pb-safe lg:pb-3">
         <div className={cn('flex items-center gap-3 px-2 py-2', collapsed && 'justify-center px-0')}>

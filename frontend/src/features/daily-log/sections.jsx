@@ -1,6 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Bath, Clock, HeartPulse, Plus, RotateCcw, Smile, Utensils } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { AlertTriangle, Bath, HeartPulse, Plus, RotateCcw, Smile, Utensils, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   ALERTS,
@@ -16,7 +14,6 @@ import {
   MOODS,
   NOTES_MAX,
   POSITIONS,
-  POSTURE_INTERVAL_MIN,
   SECTIONS,
   SKIN,
   SKIN_ZONES,
@@ -25,47 +22,26 @@ import {
   VITALS,
   labelOf,
 } from './options';
-import { ChoiceGroup, FieldGroup, MultiChoice, OptionButton, SectionCard, Stepper } from './controls';
-import { formatTime, shortName } from './useDailyLog';
+import { ChoiceGroup, FieldGroup, FormSection, MultiChoice, OptionButton, Stepper } from './controls';
+import { formatTime, vitalStatus } from './form';
+
+// Cada sección recibe la ficha (`log`) y `set(patch | (log) => patch)`.
 
 const toggleIn = (list, value, on) => (on ? [...list, value] : list.filter((v) => v !== value));
 
 /* ───────────────────────── 1 · Signos vitales ───────────────────────── */
 
-const EMPTY_VITALS = Object.fromEntries(VITALS.map((v) => [v.key, '']));
-
-function vitalStatus(def, raw) {
-  if (raw === '' || raw == null) return 'empty';
-  const n = Number(raw);
-  if (Number.isNaN(n) || n < def.min || n > def.max) return 'invalid';
-  if ((def.low != null && n < def.low) || (def.high != null && n >= def.high)) return 'alert';
-  return 'ok';
-}
-
-export function VitalsSection({ log, addVitals, lastEdit, onShowHistory }) {
-  const [draft, setDraft] = useState(EMPTY_VITALS);
-  const statuses = useMemo(() => Object.fromEntries(VITALS.map((d) => [d.key, vitalStatus(d, draft[d.key])])), [draft]);
-  const values = Object.values(statuses);
-  const canSave = values.some((s) => s !== 'empty') && !values.includes('invalid');
-
+export function VitalsSection({ log, set }) {
   const setValue = (def) => (e) => {
     const clean = e.target.value.replace(',', '.').replace(def.decimal ? /[^\d.]/g : /\D/g, '');
-    setDraft((d) => ({ ...d, [def.key]: clean.slice(0, def.decimal ? 4 : 3) }));
+    set((l) => ({ vitals: { ...l.vitals, [def.key]: clean.slice(0, def.decimal ? 4 : 3) } }));
   };
 
-  function save() {
-    const values = Object.fromEntries(
-      Object.entries(draft).filter(([, v]) => v !== '').map(([k, v]) => [k, Number(v)]),
-    );
-    addVitals(values, `Control: ${describeVitals(values)}`);
-    setDraft(EMPTY_VITALS);
-  }
-
   return (
-    <SectionCard id="vitals" icon={HeartPulse} title={SECTIONS.vitals} lastEdit={lastEdit} onShowHistory={onShowHistory}>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+    <FormSection id="vitals" icon={HeartPulse} title={SECTIONS.vitals}>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {VITALS.map((def) => {
-          const status = statuses[def.key];
+          const status = vitalStatus(def, log.vitals[def.key]);
           return (
             <label key={def.key} className="block">
               <span className="mb-1 block text-xs font-medium text-slate-600">{def.label}</span>
@@ -80,7 +56,7 @@ export function VitalsSection({ log, addVitals, lastEdit, onShowHistory }) {
               >
                 <input
                   inputMode={def.decimal ? 'decimal' : 'numeric'}
-                  value={draft[def.key]}
+                  value={log.vitals[def.key]}
                   onChange={setValue(def)}
                   placeholder="—"
                   aria-invalid={status === 'invalid' || undefined}
@@ -94,43 +70,15 @@ export function VitalsSection({ log, addVitals, lastEdit, onShowHistory }) {
           );
         })}
       </div>
-
-      <Button size="lg" className="w-full" disabled={!canSave} onClick={save}>
-        <Plus className="size-5" /> Registrar control
-      </Button>
-
-      {log.vitals.length > 0 && (
-        <FieldGroup title={`Controles de hoy (${log.vitals.length})`}>
-          <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
-            {log.vitals.map((v) => (
-              <li key={v.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2.5 text-sm">
-                <span className="font-semibold tabular-nums text-brand-700">{formatTime(v.at)}</span>
-                <span className="flex-1 tabular-nums text-slate-700">{describeVitals(v)}</span>
-                <span className="text-xs text-slate-400">{shortName(v.by)}</span>
-              </li>
-            ))}
-          </ul>
-        </FieldGroup>
-      )}
-    </SectionCard>
+    </FormSection>
   );
-}
-
-function describeVitals(v) {
-  const parts = [];
-  if (v.pa_s || v.pa_d) parts.push(`PA ${v.pa_s ?? '—'}/${v.pa_d ?? '—'}`);
-  if (v.fc) parts.push(`FC ${v.fc}`);
-  if (v.temp) parts.push(`T° ${v.temp}`);
-  if (v.spo2) parts.push(`SpO₂ ${v.spo2}%`);
-  if (v.hgt) parts.push(`HGT ${v.hgt}`);
-  return parts.join(' · ');
 }
 
 /* ─────────────────── 2 · Alimentación e hidratación ─────────────────── */
 
-export function IntakeSection({ log, update, lastEdit, onShowHistory }) {
+export function IntakeSection({ log, set }) {
   return (
-    <SectionCard id="intake" icon={Utensils} title={SECTIONS.intake} lastEdit={lastEdit} onShowHistory={onShowHistory}>
+    <FormSection id="intake" icon={Utensils} title={SECTIONS.intake}>
       <FieldGroup title="Ingesta por comida">
         <div className="space-y-3">
           {MEALS.map((meal) => (
@@ -143,13 +91,7 @@ export function IntakeSection({ log, update, lastEdit, onShowHistory }) {
                 options={INTAKE}
                 columns="grid-cols-5"
                 value={log.meals[meal.key] ?? null}
-                onChange={(value) =>
-                  update(
-                    'intake',
-                    (l) => ({ meals: { ...l.meals, [meal.key]: value } }),
-                    value ? `${meal.label}: ${labelOf(INTAKE, value)}` : `${meal.label}: registro borrado`,
-                  )
-                }
+                onChange={(value) => set((l) => ({ meals: { ...l.meals, [meal.key]: value } }))}
                 render={(o) => <span className="text-xs sm:text-sm">{o.label}</span>}
               />
             </div>
@@ -157,48 +99,34 @@ export function IntakeSection({ log, update, lastEdit, onShowHistory }) {
         </div>
       </FieldGroup>
 
-      <FieldGroup title="Hidratación del día">
+      <FieldGroup title="Hidratación">
         <ChoiceGroup
           label="Hidratación"
           options={HYDRATION}
           columns="grid-cols-3 sm:grid-cols-5"
           value={log.hydration}
-          onChange={(value) =>
-            update('intake', { hydration: value }, value ? `Hidratación: ${labelOf(HYDRATION, value)}` : 'Hidratación: borrado')
-          }
+          onChange={(value) => set({ hydration: value })}
           render={(o) => <span className="text-xs sm:text-sm">💧 {o.label}</span>}
         />
       </FieldGroup>
 
       <FieldGroup title="Deglución / disfagia">
-        <ChoiceGroup
-          label="Deglución"
-          options={DYSPHAGIA}
-          value={log.dysphagia}
-          onChange={(value) =>
-            update('intake', { dysphagia: value }, value ? `Deglución: ${labelOf(DYSPHAGIA, value)}` : 'Deglución: borrado')
-          }
-        />
+        <ChoiceGroup label="Deglución" options={DYSPHAGIA} value={log.dysphagia} onChange={(value) => set({ dysphagia: value })} />
       </FieldGroup>
-    </SectionCard>
+    </FormSection>
   );
 }
 
 /* ─────────────────── 3 · Higiene y control de esfínteres ─────────────────── */
 
-export function HygieneSection({ log, update, lastEdit, onShowHistory }) {
-  const setDiuresis = (key, options, label) => (value) =>
-    update(
-      'hygiene',
-      (l) => ({ diuresis: { ...l.diuresis, [key]: value } }),
-      value ? `Diuresis ${label}: ${labelOf(options, value)}` : `Diuresis ${label}: borrado`,
-    );
+export function HygieneSection({ log, set }) {
+  const setDiuresis = (key) => (value) => set((l) => ({ diuresis: { ...l.diuresis, [key]: value } }));
 
   return (
-    <SectionCard id="hygiene" icon={Bath} title={SECTIONS.hygiene} lastEdit={lastEdit} onShowHistory={onShowHistory}>
+    <FormSection id="hygiene" icon={Bath} title={SECTIONS.hygiene}>
       <div className="grid gap-6 lg:grid-cols-2">
         <FieldGroup title="Diuresis · frecuencia">
-          <ChoiceGroup label="Frecuencia" options={DIURESIS_FREQ} columns="grid-cols-2" value={log.diuresis.freq} onChange={setDiuresis('freq', DIURESIS_FREQ, 'frecuencia')} />
+          <ChoiceGroup label="Frecuencia" options={DIURESIS_FREQ} columns="grid-cols-2" value={log.diuresis.freq} onChange={setDiuresis('freq')} />
         </FieldGroup>
         <FieldGroup title="Diuresis · aspecto">
           <ChoiceGroup
@@ -206,7 +134,7 @@ export function HygieneSection({ log, update, lastEdit, onShowHistory }) {
             options={DIURESIS_ASPECT}
             columns="grid-cols-2"
             value={log.diuresis.aspect}
-            onChange={setDiuresis('aspect', DIURESIS_ASPECT, 'aspecto')}
+            onChange={setDiuresis('aspect')}
             render={(o) => (
               <span className="flex items-center gap-2">
                 <span className={cn('size-4 rounded-full ring-1 ring-black/10', o.swatch)} aria-hidden="true" />
@@ -227,14 +155,12 @@ export function HygieneSection({ log, update, lastEdit, onShowHistory }) {
               key={String(o.value)}
               tone={o.tone}
               selected={log.bowel.evacuated === o.value}
-              onClick={() => {
-                const next = log.bowel.evacuated === o.value ? null : o.value;
-                update(
-                  'hygiene',
-                  { bowel: { evacuated: next, bristol: next ? log.bowel.bristol : null } },
-                  next === null ? 'Deposición: borrado' : `Deposición: ${o.label}`,
-                );
-              }}
+              onClick={() =>
+                set((l) => {
+                  const next = l.bowel.evacuated === o.value ? null : o.value;
+                  return { bowel: { evacuated: next, bristol: next ? l.bowel.bristol : null } };
+                })
+              }
             >
               {o.label}
             </OptionButton>
@@ -249,13 +175,7 @@ export function HygieneSection({ log, update, lastEdit, onShowHistory }) {
               options={BRISTOL}
               columns="grid-cols-4 sm:grid-cols-7"
               value={log.bowel.bristol}
-              onChange={(value, o) =>
-                update(
-                  'hygiene',
-                  (l) => ({ bowel: { ...l.bowel, bristol: value } }),
-                  value ? `Bristol tipo ${value} (${o.group.toLowerCase()})` : 'Bristol: borrado',
-                )
-              }
+              onChange={(value) => set((l) => ({ bowel: { ...l.bowel, bristol: value } }))}
               render={(o) => (
                 <span className="flex flex-col items-center leading-tight">
                   <span className="text-xl font-bold">{o.value}</span>
@@ -263,7 +183,12 @@ export function HygieneSection({ log, update, lastEdit, onShowHistory }) {
                 </span>
               )}
             />
-            <BristolLegend />
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
+              <span>1–2 Estreñimiento</span>
+              <span>3–4 Normal</span>
+              <span>5 Blanda</span>
+              <span>6–7 Diarrea</span>
+            </div>
           </div>
         )}
       </FieldGroup>
@@ -274,54 +199,32 @@ export function HygieneSection({ log, update, lastEdit, onShowHistory }) {
             label="Higiene"
             options={HYGIENE}
             values={log.hygiene}
-            onToggle={(value, on, o) =>
-              update('hygiene', (l) => ({ hygiene: toggleIn(l.hygiene, value, on) }), `${o.label}: ${on ? 'realizado' : 'desmarcado'}`)
-            }
+            onToggle={(value, on) => set((l) => ({ hygiene: toggleIn(l.hygiene, value, on) }))}
           />
         </FieldGroup>
         <FieldGroup title="Cambios de pañal">
-          <Stepper
-            label="cambios de pañal"
-            value={log.diapers}
-            onChange={(n) => update('hygiene', { diapers: n }, `Cambios de pañal: ${n}`)}
-          />
+          <Stepper label="cambios de pañal" value={log.diapers} onChange={(n) => set({ diapers: n })} />
         </FieldGroup>
       </div>
-    </SectionCard>
-  );
-}
-
-function BristolLegend() {
-  return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-500">
-      <span>1–2 Estreñimiento</span>
-      <span>3–4 Normal</span>
-      <span>5 Blanda</span>
-      <span>6–7 Diarrea</span>
-    </div>
+    </FormSection>
   );
 }
 
 /* ─────────────────── 4 · Piel, movilidad y posición ─────────────────── */
 
-export function SkinSection({ log, update, addPosture, lastEdit, onShowHistory }) {
+export function SkinSection({ log, set }) {
   const needsZone = log.skin.some((v) => SKIN.find((s) => s.value === v)?.needsZone);
 
-  function toggleSkin(value, on, option) {
-    update(
-      'skin',
-      (l) => {
-        // "Sana" excluye al resto y viceversa
-        const skin = option.exclusive ? (on ? [value] : []) : toggleIn(l.skin.filter((v) => v !== 'sana'), value, on);
-        const stillNeedsZone = skin.some((v) => SKIN.find((s) => s.value === v)?.needsZone);
-        return { skin, skinZones: stillNeedsZone ? l.skinZones : [] };
-      },
-      `Piel: ${option.label} ${on ? 'marcado' : 'desmarcado'}`,
-    );
-  }
+  const toggleSkin = (value, on, option) =>
+    set((l) => {
+      // "Sana" excluye al resto y viceversa
+      const skin = option.exclusive ? (on ? [value] : []) : toggleIn(l.skin.filter((v) => v !== 'sana'), value, on);
+      const stillNeedsZone = skin.some((v) => SKIN.find((s) => s.value === v)?.needsZone);
+      return { skin, skinZones: stillNeedsZone ? l.skinZones : [] };
+    });
 
   return (
-    <SectionCard id="skin" icon={RotateCcw} title={SECTIONS.skin} lastEdit={lastEdit} onShowHistory={onShowHistory}>
+    <FormSection id="skin" icon={RotateCcw} title={SECTIONS.skin}>
       <FieldGroup title="Estado de la piel">
         <MultiChoice label="Estado de la piel" options={SKIN} values={log.skin} onToggle={toggleSkin} columns="grid-cols-2 sm:grid-cols-4" />
         {needsZone && (
@@ -336,13 +239,7 @@ export function SkinSection({ log, update, addPosture, lastEdit, onShowHistory }
                     tone="warn"
                     selected={selected}
                     className="min-h-10 px-3 py-1.5"
-                    onClick={() =>
-                      update(
-                        'skin',
-                        (l) => ({ skinZones: toggleIn(l.skinZones, zone, !selected) }),
-                        `Zona ${zone}: ${selected ? 'desmarcada' : 'marcada'}`,
-                      )
-                    }
+                    onClick={() => set((l) => ({ skinZones: toggleIn(l.skinZones, zone, !selected) }))}
                   >
                     {zone}
                   </OptionButton>
@@ -354,100 +251,61 @@ export function SkinSection({ log, update, addPosture, lastEdit, onShowHistory }
       </FieldGroup>
 
       <FieldGroup title="Movilidad">
-        <ChoiceGroup
-          label="Movilidad"
-          options={MOBILITY}
-          value={log.mobility}
-          onChange={(value) => update('skin', { mobility: value }, value ? `Movilidad: ${labelOf(MOBILITY, value)}` : 'Movilidad: borrado')}
-        />
+        <ChoiceGroup label="Movilidad" options={MOBILITY} value={log.mobility} onChange={(value) => set({ mobility: value })} />
       </FieldGroup>
 
-      <PostureLog postures={log.postures} onAdd={addPosture} highlight={log.mobility === 'postrado'} />
-    </SectionCard>
-  );
-}
-
-function useNow(intervalMs = 30_000) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(id);
-  }, [intervalMs]);
-  return now;
-}
-
-function PostureLog({ postures, onAdd, highlight }) {
-  const now = useNow();
-  const last = postures[0];
-  const minutesSince = last ? Math.floor((now - new Date(last.at).getTime()) / 60_000) : null;
-  const overdue = minutesSince != null && minutesSince >= POSTURE_INTERVAL_MIN;
-  const remaining = minutesSince != null ? POSTURE_INTERVAL_MIN - minutesSince : null;
-
-  return (
-    <FieldGroup
-      title="Cambios de postura (cada 2 hrs)"
-      aside={
-        last && (
-          <span
-            className={cn(
-              'flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-              overdue ? 'bg-red-50 text-red-700 ring-1 ring-red-200' : 'bg-accent-50 text-accent-800',
-            )}
-          >
-            <Clock className="size-3.5" />
-            {overdue ? `Atrasado ${minutesSince - POSTURE_INTERVAL_MIN} min` : `Próximo en ${formatMinutes(remaining)}`}
-          </span>
-        )
-      }
-    >
-      {highlight && !last && (
-        <p className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          <AlertTriangle className="size-4 shrink-0" /> Residente postrado: registra los cambios de postura.
-        </p>
-      )}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {POSITIONS.map((p) => (
-          <OptionButton key={p.value} tone="neutral" selected={last?.position === p.value} onClick={() => onAdd(p.value, `Postura: ${p.label}`)}>
-            <Plus className="size-4 opacity-60" /> {p.label}
-          </OptionButton>
-        ))}
-      </div>
-      {postures.length > 0 && (
-        <ol className="flex flex-wrap gap-2 text-xs">
-          {postures.map((p) => (
-            <li key={p.id} className="rounded-lg bg-slate-100 px-2.5 py-1 text-slate-600">
-              <span className="font-semibold tabular-nums text-slate-800">{formatTime(p.at)}</span> {labelOf(POSITIONS, p.position)} ·{' '}
-              {shortName(p.by)}
-            </li>
+      <FieldGroup title="Cambios de postura">
+        {log.mobility === 'postrado' && log.postures.length === 0 && (
+          <p className="flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <AlertTriangle className="size-4 shrink-0" /> Residente postrado: registra los cambios de postura.
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {POSITIONS.map((p) => (
+            <OptionButton
+              key={p.value}
+              tone="neutral"
+              selected={log.postures.at(-1)?.position === p.value}
+              onClick={() => set((l) => ({ postures: [...l.postures, { at: new Date().toISOString(), position: p.value }] }))}
+            >
+              <Plus className="size-4 opacity-60" /> {p.label}
+            </OptionButton>
           ))}
-        </ol>
-      )}
-    </FieldGroup>
+        </div>
+        {log.postures.length > 0 && (
+          <ol className="flex flex-wrap gap-2 text-xs">
+            {log.postures.map((p, i) => (
+              <li key={p.at} className="flex items-center gap-1 rounded-lg bg-slate-100 py-1 pl-2.5 pr-1 text-slate-600">
+                <span className="font-semibold tabular-nums text-slate-800">{formatTime(p.at)}</span> {labelOf(POSITIONS, p.position)}
+                <button
+                  type="button"
+                  aria-label="Quitar"
+                  onClick={() => set((l) => ({ postures: l.postures.filter((_, j) => j !== i) }))}
+                  className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+      </FieldGroup>
+    </FormSection>
   );
 }
-
-const formatMinutes = (m) => (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`);
 
 /* ─────────────────── 5 · Ánimo, sueño y eventos ─────────────────── */
 
-export function WellbeingSection({ log, update, lastEdit, onShowHistory }) {
-  const [notes, setNotes] = useState(log.notes);
-  useEffect(() => setNotes(log.notes), [log.notes]);
-
-  const commitNotes = () => {
-    const value = notes.trim();
-    if (value !== log.notes) update('wellbeing', { notes: value }, value ? `Observación: "${value}"` : 'Observación borrada');
-  };
-
+export function WellbeingSection({ log, set }) {
   return (
-    <SectionCard id="wellbeing" icon={Smile} title={SECTIONS.wellbeing} lastEdit={lastEdit} onShowHistory={onShowHistory}>
+    <FormSection id="wellbeing" icon={Smile} title={SECTIONS.wellbeing}>
       <FieldGroup title="Estado de ánimo">
         <ChoiceGroup
           label="Estado de ánimo"
           options={MOODS}
           columns="grid-cols-4 sm:grid-cols-7"
           value={log.mood}
-          onChange={(value, o) => update('wellbeing', { mood: value }, value ? `Ánimo: ${o.emoji} ${o.label}` : 'Ánimo: borrado')}
+          onChange={(value) => set({ mood: value })}
           render={(o) => (
             <span className="flex flex-col items-center gap-0.5 py-1 leading-tight">
               <span className="text-3xl" aria-hidden="true">
@@ -467,13 +325,7 @@ export function WellbeingSection({ log, update, lastEdit, onShowHistory }) {
               options={SLEEP}
               columns="grid-cols-2"
               value={log.sleep[shift.key]}
-              onChange={(value) =>
-                update(
-                  'wellbeing',
-                  (l) => ({ sleep: { ...l.sleep, [shift.key]: value } }),
-                  value ? `Sueño ${shift.label.toLowerCase()}: ${labelOf(SLEEP, value)}` : `Sueño ${shift.label.toLowerCase()}: borrado`,
-                )
-              }
+              onChange={(value) => set((l) => ({ sleep: { ...l.sleep, [shift.key]: value } }))}
             />
           </FieldGroup>
         ))}
@@ -482,32 +334,27 @@ export function WellbeingSection({ log, update, lastEdit, onShowHistory }) {
       <FieldGroup title="Eventos y alertas">
         <MultiChoice
           label="Eventos"
-          options={ALERTS.map((a) => ({ ...a, tone: a.critical ? 'bad' : 'good' }))}
+          options={ALERTS.map((a) => ({ ...a, tone: 'bad' }))}
           values={log.alerts}
-          columns="grid-cols-2 sm:grid-cols-5"
-          onToggle={(value, on, o) =>
-            update(
-              'wellbeing',
-              (l) => ({ alerts: toggleIn(l.alerts, value, on), painLevel: value === 'dolor' && !on ? null : l.painLevel }),
-              `${o.label}: ${on ? 'registrado' : 'desmarcado'}`,
-            )
+          columns="grid-cols-2 sm:grid-cols-4"
+          onToggle={(value, on) =>
+            set((l) => ({ alerts: toggleIn(l.alerts, value, on), painLevel: value === 'dolor' && !on ? null : l.painLevel }))
           }
         />
-        {log.alerts.includes('dolor') && <PainScale value={log.painLevel} onChange={(n) => update('wellbeing', { painLevel: n }, `Dolor: ${n}/10`)} />}
+        {log.alerts.includes('dolor') && <PainScale value={log.painLevel} onChange={(n) => set({ painLevel: n })} />}
       </FieldGroup>
 
-      <FieldGroup title="Observación (opcional)" aside={<span className="text-xs tabular-nums text-slate-400">{notes.length}/{NOTES_MAX}</span>}>
+      <FieldGroup title="Observación (opcional)" aside={<span className="text-xs tabular-nums text-slate-400">{log.notes.length}/{NOTES_MAX}</span>}>
         <textarea
           rows={2}
           maxLength={NOTES_MAX}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          onBlur={commitNotes}
+          value={log.notes}
+          onChange={(e) => set({ notes: e.target.value })}
           placeholder="Solo si es necesario. Ej: pidió hablar con su hija"
           className="w-full resize-none rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
         />
       </FieldGroup>
-    </SectionCard>
+    </FormSection>
   );
 }
 
@@ -520,7 +367,13 @@ function PainScale({ value, onChange }) {
       <p className="text-xs font-medium text-red-800">Intensidad del dolor</p>
       <div className="grid grid-cols-5 gap-1.5 sm:grid-cols-10">
         {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-          <OptionButton key={n} tone={painTone(n)} selected={value === n} className="min-h-11 px-0 text-base font-bold" onClick={() => onChange(n)}>
+          <OptionButton
+            key={n}
+            tone={painTone(n)}
+            selected={value === n}
+            className="min-h-11 px-0 text-base font-bold"
+            onClick={() => onChange(value === n ? null : n)}
+          >
             {n}
           </OptionButton>
         ))}

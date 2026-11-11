@@ -21,7 +21,11 @@ services:
     networks: [backend]
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        # Opcional: GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
+        GIT_SHA: ${GIT_SHA:-}
     restart: unless-stopped
     depends_on:
       db:
@@ -42,10 +46,16 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-Administradora}
+      SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+      SUPPORT_PASSWORD: ${SUPPORT_PASSWORD:-}
+      SUPPORT_NAME: ${SUPPORT_NAME:-Soporte}
+      BACKUP_DIR: /app/backups
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
       UPLOAD_DIR: /app/uploads
       TZ: ${TZ:-America/Santiago}
     volumes:
       - uploads:/app/uploads
+      - backups:/app/backups
     networks: [backend, frontend]
 
   frontend:
@@ -61,6 +71,7 @@ services:
 volumes:
   pgdata:
   uploads:
+  backups:
 
 networks:
   backend:

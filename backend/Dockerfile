@@ -9,9 +9,15 @@ FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
-RUN apk add --no-cache tini \
-  && mkdir -p /app/uploads \
-  && chown node:node /app/uploads
+# postgresql17-client: pg_dump para los respaldos desde la sección Soporte
+RUN apk add --no-cache tini postgresql17-client \
+  && mkdir -p /app/uploads /app/backups \
+  && chown node:node /app/uploads /app/backups
+
+# Versión visible en Soporte → Estado (GIT_SHA se pasa al construir; la fecha es automática)
+ARG GIT_SHA=""
+ENV APP_VERSION=$GIT_SHA
+RUN date -u +%Y-%m-%dT%H:%M:%SZ > /app/BUILD_DATE
 
 COPY --from=deps --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node package.json ./

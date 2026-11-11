@@ -3,7 +3,8 @@ import rateLimit from 'express-rate-limit';
 import { verifyToken } from '../../middlewares/auth.js';
 import { parse } from '../../utils/validation.js';
 import { loginSchema, updateProfileSchema } from './auth.validators.js';
-import { authenticate, cookieOptions, signAccessToken, updateOwnProfile } from './auth.service.js';
+import { authenticate, cookieOptions, recordLogin, signAccessToken, updateOwnProfile } from './auth.service.js';
+import { findUserById } from '../users/users.service.js';
 import { env } from '../../config/env.js';
 
 export const authRouter = Router();
@@ -14,13 +15,17 @@ const loginLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  message: { error: 'Demasiados intentos. Intenta nuevamente en unos minutos.' },
+  handler: (req, res, _next, options) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : null;
+    recordLogin({ email, success: false, reason: 'rate_limited', ip: req.ip, userAgent: req.get('user-agent') });
+    res.status(options.statusCode).json({ error: 'Demasiados intentos. Intenta nuevamente en unos minutos.' });
+  },
 });
 
 authRouter.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = parse(loginSchema, req.body);
-  const user = await authenticate(email, password);
-  const token = signAccessToken(user);
+  const { user, tokenVersion } = await authenticate(email, password, { ip: req.ip, userAgent: req.get('user-agent') });
+  const token = signAccessToken(user, tokenVersion);
 
   res.cookie(env.cookieName, token, cookieOptions());
   // El token también se devuelve para clientes que prefieran header Authorization
@@ -39,5 +44,11 @@ authRouter.get('/me', verifyToken, (req, res) => {
 
 authRouter.patch('/me', verifyToken, async (req, res) => {
   const changes = parse(updateProfileSchema, req.body);
-  res.json({ user: await updateOwnProfile(req.user, changes) });
+  const user = await updateOwnProfile(req.user, changes);
+  // Al cambiar la clave se cierran las demás sesiones; esta se renueva con el nuevo token
+  if (changes.new_password) {
+    const fresh = await findUserById(req.user.id);
+    res.cookie(env.cookieName, signAccessToken(user, fresh.token_version), cookieOptions());
+  }
+  res.json({ user });
 });

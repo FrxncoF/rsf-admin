@@ -1,7 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { api, UNAUTHORIZED_EVENT } from '@/lib/api';
 
-export const ROLES = Object.freeze({ ADMIN: 'ADMIN', CUIDADORA: 'CUIDADORA' });
+export const ROLES = Object.freeze({ ADMIN: 'ADMIN', CUIDADORA: 'CUIDADORA', SOPORTE: 'SOPORTE' });
+
+/** SOPORTE puede todo lo que puede un ADMIN. */
+export const hasRole = (user, roles) =>
+  Boolean(user) && (roles.includes(user.role) || (user.role === ROLES.SOPORTE && roles.includes(ROLES.ADMIN)));
 
 const AuthContext = createContext(null);
 
@@ -42,7 +46,15 @@ export function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, status, login, logout, updateProfile, isAdmin: user?.role === ROLES.ADMIN }),
+    () => ({
+      user,
+      status,
+      login,
+      logout,
+      updateProfile,
+      isAdmin: hasRole(user, [ROLES.ADMIN]),
+      isSupport: user?.role === ROLES.SOPORTE,
+    }),
     [user, status, login, logout, updateProfile],
   );
 

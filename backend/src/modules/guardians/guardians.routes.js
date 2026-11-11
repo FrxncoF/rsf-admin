@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { verifyRole, verifyToken, ROLES } from '../../middlewares/auth.js';
 import { parse, parseId } from '../../utils/validation.js';
-import { guardianListQuerySchema, guardianSchema } from './guardians.validators.js';
+import { guardianListQuerySchema, guardianSchema, guardianStatusSchema } from './guardians.validators.js';
 import * as guardians from './guardians.service.js';
 
 export const guardiansRouter = Router();
@@ -29,7 +29,9 @@ guardiansRouter.put('/:id', async (req, res) => {
   res.json({ data: await guardians.updateGuardian(id, input, req.user.id) });
 });
 
-guardiansRouter.delete('/:id', async (req, res) => {
-  await guardians.deleteGuardian(parseId(req.params));
-  res.status(204).end();
+// Sin borrado: se desactiva / reactiva
+guardiansRouter.patch('/:id/status', async (req, res) => {
+  const id = parseId(req.params);
+  const { is_active } = parse(guardianStatusSchema, req.body);
+  res.json({ data: await guardians.setGuardianStatus(id, is_active, req.user.id) });
 });
