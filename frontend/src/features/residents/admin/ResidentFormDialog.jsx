@@ -133,6 +133,7 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
   const [photoPreview, setPhotoPreview] = useState(null);
   const [removePhoto, setRemovePhoto] = useState(false);
   const [processingPhoto, setProcessingPhoto] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoMessage, setPhotoMessage] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -258,7 +259,10 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
       // La foto va en una segunda llamada: si falla, los datos ya quedaron guardados
       let photoError;
       try {
-        if (photoFile) saved = await residentsApi.uploadPhoto(saved.id, photoFile);
+        if (photoFile) {
+          setUploadingPhoto(true);
+          saved = await residentsApi.uploadPhoto(saved.id, photoFile);
+        }
         else if (removePhoto && saved.has_photo) saved = await residentsApi.removePhoto(saved.id);
       } catch (err) {
         photoError = err.message;
@@ -273,6 +277,7 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
       }
     } finally {
       setSaving(false);
+      setUploadingPhoto(false);
     }
   }
 
@@ -291,8 +296,9 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
           <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancelar
           </Button>
+          {uploadingPhoto && <span className="mr-auto self-center text-xs text-slate-500">Cargando imagen, puede tardar unos segundos…</span>}
           <Button type="submit" form={formId} loading={saving} disabled={processingPhoto}>
-            {isEdit ? 'Guardar cambios' : 'Crear residente'}
+            {uploadingPhoto ? 'Subiendo foto…' : saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Crear residente'}
           </Button>
         </>
       }
