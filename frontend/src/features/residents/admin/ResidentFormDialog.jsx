@@ -7,6 +7,7 @@ import { Alert } from '@/components/ui/Feedback';
 import { formatRut, isValidRut } from '@/lib/rut';
 import { formatPhone } from '@/lib/phone';
 import { formatClp, parseUfInput, useUf } from '@/lib/money';
+import { ImageError, prepareProfilePhoto } from '@/lib/image';
 import { useSites } from '@/features/sites/SiteContext';
 import { GuardianPicker } from '@/features/guardians/GuardianPicker';
 import {
@@ -131,6 +132,8 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
   const [photoFile, setPhotoFile] = useState(null);
   const [photoPreview, setPhotoPreview] = useState(null);
   const [removePhoto, setRemovePhoto] = useState(false);
+  const [processingPhoto, setProcessingPhoto] = useState(false);
+  const [photoMessage, setPhotoMessage] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -162,6 +165,7 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
     setServerError('');
     setPhotoFile(null);
     setRemovePhoto(false);
+    setPhotoMessage('');
   }, [open, resident, currentSiteId]);
 
   useEffect(() => {
@@ -195,11 +199,34 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
     setErrors((errs) => Object.fromEntries(Object.entries(errs).filter(([k]) => !k.startsWith('guardians'))));
   };
 
+  // Lleva la vista (dentro del modal) al primer campo con error y lo enfoca.
+  // Se hace en un efecto para que los mensajes rojos ya estén pintados.
+  const [errorFocusTick, setErrorFocusTick] = useState(0);
+  const goToFirstError = () => setErrorFocusTick((t) => t + 1);
+  useEffect(() => {
+    if (!errorFocusTick) return;
+    const form = document.getElementById(formId);
+    // El primero en orden visual: un control inválido o el mensaje rojo de un campo (ej. botones Sí/No)
+    const target = form?.querySelector('[aria-invalid="true"], p.text-red-600');
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Si es un mensaje, se enfoca el control de ese campo
+    const control = target.matches('input, select, textarea, button') ? target : target.parentElement?.querySelector('input, select, button');
+    control?.focus({ preventScroll: true });
+  }, [errorFocusTick, formId]);
+
   async function handleSubmit(e) {
     e.preventDefault();
     const clientErrors = validate(values);
     setErrors(clientErrors);
-    if (Object.keys(clientErrors).length) return;
+    const missing = Object.keys(clientErrors).length;
+    if (missing) {
+      setServerError(
+        missing === 1 ? 'Falta 1 dato: revisa el campo marcado en rojo.' : `Faltan ${missing} datos: revisa los campos marcados en rojo.`,
+      );
+      goToFirstError();
+      return;
+    }
 
     setSaving(true);
     setServerError('');
@@ -239,8 +266,11 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
 
       onSaved(saved, { photoError });
     } catch (err) {
-      setServerError(err.message);
-      if (err.details) setErrors(err.details);
+      setServerError(err.details ? 'Hay datos por corregir: revisa los campos marcados en rojo.' : err.message);
+      if (err.details) {
+        setErrors(err.details);
+        goToFirstError();
+      }
     } finally {
       setSaving(false);
     }
@@ -261,7 +291,7 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
           <Button variant="outline" onClick={onClose} disabled={saving}>
             Cancelar
           </Button>
-          <Button type="submit" form={formId} loading={saving}>
+          <Button type="submit" form={formId} loading={saving} disabled={processingPhoto}>
             {isEdit ? 'Guardar cambios' : 'Crear residente'}
           </Button>
         </>
@@ -287,11 +317,23 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
               {photoPreview || currentHasPhoto ? 'Cambiar foto' : 'Subir foto'}
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*,.heic,.heif"
                 className="sr-only"
-                onChange={(e) => {
-                  setPhotoFile(e.target.files?.[0] ?? null);
-                  setRemovePhoto(false);
+                disabled={processingPhoto}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = ''; // permite volver a elegir la misma foto
+                  if (!file) return;
+                  setPhotoMessage('');
+                  setProcessingPhoto(true);
+                  try {
+                    setPhotoFile(await prepareProfilePhoto(file));
+                    setRemovePhoto(false);
+                  } catch (err) {
+                    setPhotoMessage(err instanceof ImageError ? err.message : 'No se pudo procesar la imagen');
+                  } finally {
+                    setProcessingPhoto(false);
+                  }
                 }}
               />
             </label>
@@ -307,7 +349,13 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
                 <Trash2 className="size-3.5" /> Quitar foto
               </button>
             )}
-            <p className="text-xs text-slate-500">JPG, PNG o WEBP · máx. 5 MB</p>
+            {processingPhoto ? (
+              <p className="text-xs text-slate-500">Preparando foto…</p>
+            ) : photoMessage ? (
+              <p className="max-w-xs text-xs text-red-600">{photoMessage}</p>
+            ) : (
+              <p className="text-xs text-slate-500">Cualquier foto del celular o PC; se ajusta sola.</p>
+            )}
           </div>
         </div>
 
