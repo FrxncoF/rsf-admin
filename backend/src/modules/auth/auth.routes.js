@@ -3,12 +3,20 @@ import rateLimit from 'express-rate-limit';
 import { verifyToken } from '../../middlewares/auth.js';
 import { parse } from '../../utils/validation.js';
 import { loginSchema, updateProfileSchema } from './auth.validators.js';
-import { authenticate, cookieOptions, recordLogin, signAccessToken, updateOwnProfile } from './auth.service.js';
+import {
+  authenticate,
+  cookieOptions,
+  recordLogin,
+  revokeToken,
+  signAccessToken,
+  updateOwnProfile,
+} from './auth.service.js';
 import { findUserById } from '../users/users.service.js';
 import { env } from '../../config/env.js';
 
 export const authRouter = Router();
 
+// Por IP. El bloqueo por correo (muchas IPs contra una cuenta) está en authenticate().
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -22,17 +30,28 @@ const loginLimiter = rateLimit({
   },
 });
 
+// Cambiar clave o correo pide la clave actual: se limitan los intentos fallidos
+const profileLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: 'Demasiados intentos. Intenta nuevamente en unos minutos.' },
+});
+
 authRouter.post('/login', loginLimiter, async (req, res) => {
   const { email, password } = parse(loginSchema, req.body);
   const { user, tokenVersion } = await authenticate(email, password, { ip: req.ip, userAgent: req.get('user-agent') });
-  const token = signAccessToken(user, tokenVersion);
 
-  res.cookie(env.cookieName, token, cookieOptions());
-  // El token también se devuelve para clientes que prefieran header Authorization
-  res.json({ user, token, expiresInHours: env.jwtExpiresHours });
+  // El token viaja solo en la cookie httpOnly: nunca en el cuerpo, así un script no puede leerlo
+  res.cookie(env.cookieName, signAccessToken(user, tokenVersion), cookieOptions());
+  res.json({ user, expiresInHours: env.jwtExpiresHours });
 });
 
-authRouter.post('/logout', (_req, res) => {
+authRouter.post('/logout', async (req, res) => {
+  // Invalida el token en el servidor: aunque alguien lo hubiera copiado, deja de servir
+  await revokeToken(req.cookies?.[env.cookieName]);
   const { maxAge: _maxAge, ...opts } = cookieOptions();
   res.clearCookie(env.cookieName, opts);
   res.status(204).end();
@@ -42,7 +61,7 @@ authRouter.get('/me', verifyToken, (req, res) => {
   res.json({ user: req.user });
 });
 
-authRouter.patch('/me', verifyToken, async (req, res) => {
+authRouter.patch('/me', profileLimiter, verifyToken, async (req, res) => {
   const changes = parse(updateProfileSchema, req.body);
   const user = await updateOwnProfile(req.user, changes);
   // Al cambiar la clave se cierran las demás sesiones; esta se renueva con el nuevo token

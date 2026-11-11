@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
@@ -9,7 +10,29 @@ import { findUserWithHashByEmail, toPublicUser, touchLastLogin, updateUser } fro
 // de respuesta no revele qué correos están registrados.
 const DUMMY_HASH = bcrypt.hashSync('timing-safe-dummy-password', 12);
 
+// Bloqueo por cuenta: frena a quien prueba claves de un mismo correo desde muchas IPs
+const LOCK_ATTEMPTS = 10;
+const LOCK_MINUTES = 15;
+
+/** Intentos fallidos del correo en los últimos 15 min, sin contar los anteriores a su último ingreso correcto. */
+async function recentFailures(email) {
+  const { rows } = await query(
+    `SELECT count(*)::int AS n FROM login_events
+      WHERE lower(email) = lower($1) AND success = FALSE AND reason = 'bad_credentials'
+        AND created_at > GREATEST(
+          now() - make_interval(mins => $2),
+          COALESCE((SELECT max(created_at) FROM login_events WHERE lower(email) = lower($1) AND success), '-infinity'))`,
+    [email, LOCK_MINUTES],
+  );
+  return rows[0].n;
+}
+
 export async function authenticate(email, password, meta = {}) {
+  if ((await recentFailures(email)) >= LOCK_ATTEMPTS) {
+    await recordLogin({ email, success: false, reason: 'locked', ...meta });
+    throw new AppError(429, `Demasiados intentos con este correo. Intenta nuevamente en ${LOCK_MINUTES} minutos.`);
+  }
+
   const user = await findUserWithHashByEmail(email);
   const ok = await bcrypt.compare(password, user?.password_hash ?? DUMMY_HASH);
 
@@ -36,10 +59,33 @@ export async function recordLogin({ email, userId = null, success, reason, ip = 
 }
 
 export function signAccessToken(user, tokenVersion = 0) {
-  return jwt.sign({ sub: user.id, role: user.role, tv: tokenVersion }, env.jwtSecret, {
+  // jti: identificador único, permite invalidar esta sesión al salir
+  return jwt.sign({ sub: user.id, role: user.role, tv: tokenVersion, jti: randomUUID() }, env.jwtSecret, {
     algorithm: 'HS256',
     expiresIn: `${env.jwtExpiresHours}h`,
   });
+}
+
+/** Invalida el token de la sesión actual (logout). Un token inválido o ya vencido se ignora. */
+export async function revokeToken(token) {
+  if (!token) return;
+  let payload;
+  try {
+    payload = jwt.verify(token, env.jwtSecret, { algorithms: ['HS256'] });
+  } catch {
+    return;
+  }
+  if (!payload.jti || !payload.exp) return;
+  await query('INSERT INTO revoked_tokens (jti, expires_at) VALUES ($1, to_timestamp($2)) ON CONFLICT DO NOTHING', [
+    payload.jti,
+    payload.exp,
+  ]);
+}
+
+export async function isTokenRevoked(jti) {
+  if (!jti) return false;
+  const { rowCount } = await query('SELECT 1 FROM revoked_tokens WHERE jti = $1', [jti]);
+  return rowCount > 0;
 }
 
 export function cookieOptions() {

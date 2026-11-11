@@ -2,27 +2,21 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/AppError.js';
 import { findUserById, toPublicUser } from '../modules/users/users.service.js';
+import { isTokenRevoked } from '../modules/auth/auth.service.js';
 
 export const ROLES = Object.freeze({ ADMIN: 'ADMIN', CUIDADORA: 'CUIDADORA', SOPORTE: 'SOPORTE' });
 
 /** SOPORTE puede todo lo que puede un ADMIN. */
 export const hasAdminAccess = (user) => user?.role === ROLES.ADMIN || user?.role === ROLES.SOPORTE;
 
-function extractToken(req) {
-  const fromCookie = req.cookies?.[env.cookieName];
-  if (fromCookie) return fromCookie;
-  const header = req.headers.authorization || '';
-  const [scheme, token] = header.split(' ');
-  return scheme === 'Bearer' && token ? token : null;
-}
-
 /**
- * Verifica el JWT (cookie httpOnly o header Authorization: Bearer) y carga el
+ * Verifica el JWT de la cookie httpOnly (JavaScript no puede leerla) y carga el
  * usuario desde la BD, así una cuenta desactivada pierde el acceso de inmediato.
- * `tv` (token_version) permite cerrar todas las sesiones de un usuario.
+ * `tv` (token_version) permite cerrar todas las sesiones de un usuario;
+ * `jti` revocado = sesión cerrada con "Salir".
  */
 export async function verifyToken(req, _res, next) {
-  const token = extractToken(req);
+  const token = req.cookies?.[env.cookieName];
   if (!token) throw AppError.unauthorized();
 
   let payload;
@@ -31,6 +25,8 @@ export async function verifyToken(req, _res, next) {
   } catch {
     throw AppError.unauthorized('Sesión inválida o expirada');
   }
+
+  if (await isTokenRevoked(payload.jti)) throw AppError.unauthorized('Sesión cerrada. Ingresa nuevamente.');
 
   const user = await findUserById(payload.sub);
   if (!user || !user.is_active) throw AppError.unauthorized('Usuario no autorizado');
