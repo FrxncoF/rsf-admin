@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Form';
 import { Alert } from '@/components/ui/Feedback';
@@ -66,6 +66,9 @@ export default function LoginPage() {
           <Button type="submit" size="lg" className="w-full" loading={loading}>
             Ingresar
           </Button>
+          <Link to="/olvide-contrasena" className="block text-center text-sm text-brand-700 hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
         </form>
       </div>
     </div>

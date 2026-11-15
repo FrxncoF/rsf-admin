@@ -53,35 +53,59 @@ const dataSchema = z.object({
   notes: z.string().trim().max(150).default(''),
 });
 
-/** ¿La ficha tiene al menos un dato? (no se guardan fichas vacías) */
-function hasContent(d) {
-  return (
-    Object.values(d.vitals).some((v) => v != null) ||
-    Object.values(d.meals).some(Boolean) ||
-    Boolean(d.hydration || d.dysphagia || d.diuresis.freq || d.diuresis.aspect || d.mobility || d.mood) ||
-    d.bowel.evacuated != null ||
-    d.hygiene.length > 0 ||
-    d.diapers > 0 ||
-    d.skin.length > 0 ||
-    d.postures.length > 0 ||
-    Boolean(d.sleep.noche || d.sleep.dia) ||
-    d.alerts.length > 0 ||
-    d.notes !== ''
-  );
-}
-
-export const createDailyLogSchema = z.object({
-  resident_id: z.string({ message: 'Indica el residente' }).uuid('Residente inválido'),
-  data: dataSchema
-    .refine(hasContent, 'La ficha está vacía')
-    // Consistencia: sin evacuación no hay Bristol; sin dolor no hay intensidad; sin lesión no hay zona
-    .transform((d) => ({
-      ...d,
-      bowel: { ...d.bowel, bristol: d.bowel.evacuated ? d.bowel.bristol : null },
-      painLevel: d.alerts.includes('dolor') ? d.painLevel : null,
-      skinZones: d.skin.some((s) => !['sana', 'seca'].includes(s)) ? d.skinZones : [],
-    })),
+// Consistencia: sin evacuación no hay Bristol; sin dolor no hay intensidad; sin lesión no hay zona
+const normalize = (d) => ({
+  ...d,
+  bowel: { ...d.bowel, bristol: d.bowel.evacuated ? d.bowel.bristol : null },
+  painLevel: d.alerts.includes('dolor') ? d.painLevel : null,
+  skinZones: d.skin.some((s) => !['sana', 'seca'].includes(s)) ? d.skinZones : [],
 });
+
+/** Ficha completa (se valida después de juntar lo guardado con los cambios). */
+export const fullDataSchema = dataSchema.transform(normalize);
+
+// Cambios parciales: solo los datos que la cuidadora tocó. En los grupos (signos, comidas,
+// diuresis, deposiciones, sueño) basta enviar el dato cambiado: no pisa lo que anotó otra.
+const NESTED = ['vitals', 'meals', 'diuresis', 'bowel', 'sleep'];
+const patchShape = Object.fromEntries(
+  Object.entries(dataSchema.shape).map(([key, schema]) => {
+    if (NESTED.includes(key)) {
+      const inner = schema instanceof z.ZodDefault ? schema.removeDefault() : schema;
+      return [key, inner.partial().strict().optional()];
+    }
+    return [key, (schema instanceof z.ZodDefault ? schema.removeDefault() : schema).optional()];
+  }),
+);
+export const NESTED_KEYS = NESTED;
+
+const shiftFields = {
+  patch: z
+    .object(patchShape)
+    .strict()
+    .refine((p) => Object.keys(p).length > 0, 'No hay cambios'),
+};
+
+/** Guardado de la ficha del turno actual (se crea con el primer dato). */
+export const saveCurrentSchema = z.object({
+  resident_id: z.string({ message: 'Indica el residente' }).uuid('Residente inválido'),
+  ...shiftFields,
+});
+
+/** Edición de una ficha específica (la del turno, o una recién cerrada por ADMIN). */
+export const saveLogSchema = z.object(shiftFields);
+
+export const currentQuerySchema = z.object({
+  resident_id: z.string({ message: 'Indica el residente' }).uuid('Residente inválido'),
+});
+
+export const shiftSettingsSchema = z
+  .object({
+    day_start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora inválida'),
+    night_start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora inválida'),
+    // Horas para terminar de completar la ficha después de terminado el turno (0 = se cierra al tiro)
+    edit_grace_hours: z.coerce.number().int('Usa horas enteras').min(0, 'Mínimo 0').max(12, 'Máximo 12 horas').default(1),
+  })
+  .refine((s) => s.day_start < s.night_start, { message: 'El turno de día debe empezar antes que el de noche', path: ['night_start'] });
 
 export const listDailyLogsQuerySchema = z.object({
   resident_id: z.string({ message: 'Indica el residente' }).uuid('Residente inválido'),

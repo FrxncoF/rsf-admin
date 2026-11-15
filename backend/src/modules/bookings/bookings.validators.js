@@ -115,6 +115,14 @@ export const bookingSettingsSchema = z
       .max(12, 'Máximo 12 bloques')
       .transform((list) => [...list].sort((a, b) => a.start.localeCompare(b.start)))
       .refine((list) => list.every((b, i) => i === 0 || b.start >= list[i - 1].end), 'Hay bloques que se topan'),
+    // Límites de la página pública (el equipo puede agendar por sobre ellos)
+    limits: z
+      .object({
+        per_person_day: z.coerce.number().int().min(1, 'Mínimo 1').max(10, 'Máximo 10'),
+        per_person_week: z.coerce.number().int().min(1, 'Mínimo 1').max(30, 'Máximo 30'),
+        per_resident_day: z.coerce.number().int().min(1, 'Mínimo 1').max(20, 'Máximo 20'),
+      })
+      .default({ per_person_day: 1, per_person_week: 3, per_resident_day: 2 }),
     blocked_dates: z
       .array(z.object({ date: isoDate, reason: z.string().trim().max(80).default('') }))
       .max(100)

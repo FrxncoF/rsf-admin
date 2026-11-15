@@ -38,7 +38,75 @@ export function toPayload(log) {
   return { ...log, vitals, notes: log.notes.trim() };
 }
 
-/** ¿Se registró algo? No se permite guardar fichas vacías. */
+// Grupos que se guardan dato por dato (no pisan lo que anotó otra cuidadora)
+const NESTED = ['vitals', 'meals', 'diuresis', 'bowel', 'sleep'];
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/** Ficha guardada (API) → estado del formulario (los signos vitales se editan como texto). */
+export function fromData(data = {}) {
+  const base = { ...EMPTY_LOG, ...data };
+  return {
+    ...base,
+    vitals: Object.fromEntries(VITALS.map((d) => [d.key, data.vitals?.[d.key] == null ? '' : String(data.vitals[d.key])])),
+    meals: { ...(data.meals ?? {}) },
+    diuresis: { ...EMPTY_LOG.diuresis, ...(data.diuresis ?? {}) },
+    bowel: { ...EMPTY_LOG.bowel, ...(data.bowel ?? {}) },
+    sleep: { ...EMPTY_LOG.sleep, ...(data.sleep ?? {}) },
+    notes: data.notes ?? '',
+  };
+}
+
+/**
+ * Cambios entre lo último guardado (`base`) y lo que hay en pantalla (`log`), listos para el API.
+ * Los signos vitales mal escritos no se envían (se guardan cuando queden en rango).
+ */
+export function changesBetween(base, log) {
+  const a = toPayload(base);
+  const b = toPayload(log);
+  const patch = {};
+  for (const key of Object.keys(b)) {
+    if (NESTED.includes(key)) {
+      const sub = {};
+      for (const k of new Set([...Object.keys(a[key] ?? {}), ...Object.keys(b[key] ?? {})])) {
+        if (key === 'vitals') {
+          const def = VITALS.find((d) => d.key === k);
+          if (def && vitalStatus(def, log.vitals[k]) === 'invalid') continue;
+        }
+        if (!same(a[key]?.[k], b[key]?.[k])) sub[k] = b[key]?.[k] ?? null;
+      }
+      if (Object.keys(sub).length) patch[key] = sub;
+    } else if (!same(a[key], b[key])) {
+      patch[key] = b[key];
+    }
+  }
+  return patch;
+}
+
+/** Aplica cambios del formulario sobre otra versión (para no perder lo escrito mientras se guardaba). */
+export function applyChanges(target, base, log) {
+  const out = { ...target };
+  for (const key of Object.keys(log)) {
+    if (NESTED.includes(key)) {
+      const merged = { ...target[key] };
+      for (const k of new Set([...Object.keys(base[key] ?? {}), ...Object.keys(log[key] ?? {})])) {
+        if (!same(base[key]?.[k], log[key]?.[k])) merged[k] = log[key][k];
+      }
+      out[key] = merged;
+    } else if (!same(base[key], log[key])) {
+      out[key] = log[key];
+    }
+  }
+  return out;
+}
+
+/** "2026-11-15" → "15-11-2026" */
+export const dmy = (iso) => iso.split('-').reverse().join('-');
+
+const weekday = new Intl.DateTimeFormat('es-CL', { weekday: 'long', timeZone: 'UTC' });
+/** "2026-11-15" → "domingo 15-11-2026" (para títulos: "Ficha del domingo 15-11-2026") */
+export const dayAndDate = (iso) => `${weekday.format(new Date(`${iso}T12:00:00Z`))} ${dmy(iso)}`;
+
+/** ¿Se registró algo? */
 export function isEmptyLog(log) {
   const p = toPayload(log);
   return !(

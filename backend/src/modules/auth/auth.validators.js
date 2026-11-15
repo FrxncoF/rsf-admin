@@ -16,3 +16,17 @@ export const updateProfileSchema = z
   .refine((v) => v.full_name !== undefined || v.email !== undefined || v.new_password !== undefined, {
     message: 'No hay cambios que aplicar',
   });
+
+// --- Olvidé mi contraseña ---
+export const forgotPasswordSchema = z.object({
+  email: z.string({ message: 'Ingresa tu correo' }).trim().toLowerCase().email('Correo inválido').max(160),
+});
+
+const resetToken = z.string({ message: 'Enlace inválido' }).regex(/^[A-Za-z0-9_-]{40,60}$/, 'Enlace inválido');
+
+export const resetCheckSchema = z.object({ token: resetToken });
+
+export const resetPasswordSchema = z.object({
+  token: resetToken,
+  password: z.string({ message: 'Ingresa la nueva contraseña' }).min(8, 'Mínimo 8 caracteres').max(128),
+});

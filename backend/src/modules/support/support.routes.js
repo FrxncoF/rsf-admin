@@ -4,6 +4,9 @@ import { verifyRole, verifyToken, ROLES } from '../../middlewares/auth.js';
 import { parse } from '../../utils/validation.js';
 import { CATALOGS, getSetting, setSetting } from '../settings/settings.service.js';
 import { bookingSettingsSchema } from '../bookings/bookings.validators.js';
+import { shiftSettingsSchema } from '../daily-logs/dailyLogs.validators.js';
+import { emailLayout, mailConfigured, sendMail } from '../../utils/mailer.js';
+import { env } from '../../config/env.js';
 import * as support from './support.service.js';
 import { createBackup, listBackups } from './backups.service.js';
 import { AppError } from '../../utils/AppError.js';
@@ -72,6 +75,43 @@ const catalogSchema = z
 supportRouter.get('/settings', async (_req, res) => {
   const [banner, ...catalogs] = await Promise.all([getSetting('banner'), ...CATALOGS.map(getSetting)]);
   res.json({ data: { banner, ...Object.fromEntries(CATALOGS.map((k, i) => [k, catalogs[i]])) } });
+});
+
+// --- Correo saliente ---
+supportRouter.get('/mail', (_req, res) => {
+  // Nunca se exponen las credenciales: solo si están puestas y desde dónde se envía
+  res.json({ data: { configured: mailConfigured(), host: env.smtp.host, from: env.smtp.from, app_url: env.appUrl } });
+});
+
+supportRouter.post('/mail/test', async (req, res) => {
+  try {
+    const result = await sendMail({
+      to: req.user.email,
+      subject: 'Correo de prueba · Residencia San Francisco',
+      text: `Este es un correo de prueba del sistema de la residencia.
+Si lo recibiste, el envío de correos funciona.
+
+${env.appUrl}`,
+      html: emailLayout({
+        title: 'Correo de prueba',
+        intro: 'Si recibiste este mensaje, el envío de correos del sistema funciona correctamente.',
+        buttonText: 'Abrir el sistema',
+        buttonUrl: env.appUrl,
+        footer: 'Enviado desde Soporte → Configuración.',
+      }),
+    });
+    res.json({ data: { ...result, to: req.user.email } });
+  } catch (err) {
+    throw AppError.badRequest(`No se pudo enviar: ${err.message}`);
+  }
+});
+
+supportRouter.get('/settings/shifts', async (_req, res) => {
+  res.json({ data: await getSetting('shifts') });
+});
+
+supportRouter.put('/settings/shifts', async (req, res) => {
+  res.json({ data: await setSetting('shifts', parse(shiftSettingsSchema, req.body), req.user.id) });
 });
 
 supportRouter.get('/settings/bookings', async (_req, res) => {

@@ -217,6 +217,12 @@ export default function PublicBookingPage() {
             Reserva aquí tu visita a la residencia. Las visitas se agendan <strong>con al menos un día de anticipación</strong> (hasta las{' '}
             {config.cutoff_time} del día anterior) y hasta {config.days_ahead} días más.
           </p>
+          {config.limits && (
+            <p className="text-sm text-slate-600">
+              Cada persona puede reservar <strong>{config.limits.per_person_day === 1 ? '1 visita' : `${config.limits.per_person_day} visitas`} al día</strong> y
+              hasta <strong>{config.limits.per_person_week} en la semana</strong>, para que todas las familias tengan horario.
+            </p>
+          )}
           <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <AlertTriangle className="mt-0.5 size-5 shrink-0" />
             <p>{WARNING_NOTE}</p>
@@ -299,11 +305,10 @@ export default function PublicBookingPage() {
 
       {step === 2 && lookup && !lookup.found && (
         <form onSubmit={submitWho} className="space-y-4" noValidate>
-          {doc.docType === 'RUT' && (
-            <p className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-              <Info className="mt-0.5 size-4 shrink-0" /> No encontramos tu RUT entre los apoderados registrados. Completa tus datos para reservar.
-            </p>
-          )}
+          {/* Mensaje neutro: no se revela si el RUT está o no registrado (protección de datos) */}
+          <p className="flex items-start gap-2 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+            <Info className="mt-0.5 size-4 shrink-0" /> Completa tus datos para reservar.
+          </p>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Nombre" htmlFor="first_name" error={errors.first_name}>
               <Input id="first_name" className="h-11" autoComplete="given-name" value={visitor.first_name} onChange={setField(setVisitor, 'first_name')} />
