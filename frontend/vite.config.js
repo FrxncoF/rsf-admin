@@ -30,6 +30,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest}'],
+        // El generador de PDF (~1 MB) no se precarga: se baja solo al usar el pastillero en el celular
+        globIgnores: ['**/pdfmake-*.js', '**/vfs_fonts-*.js'],
         navigateFallback: '/index.html',
         // La API nunca se cachea: datos de residentes siempre frescos y privados
         navigateFallbackDenylist: [/^\/api\//],
