@@ -37,71 +37,93 @@ const BRAND = '#215d97';
 const GRAY = '#64748b';
 const WEEK = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
-const box = { canvas: [{ type: 'rect', x: 0, y: 0, w: 8, h: 8, r: 1, lineColor: '#94a3b8', lineWidth: 0.6 }], width: 8 };
+// Mismos colores que en la pantalla: mañana ámbar, tarde/noche índigo, SOS gris
+const CHIP = {
+  AM: { background: '#fef3c7', color: '#92400e' },
+  PM: { background: '#e0e7ff', color: '#3730a3' },
+  SOS: { background: '#f1f5f9', color: GRAY },
+};
 
-function timesCell(list, sos) {
+/** Cada hora como "chip": fondo de color detrás del texto (resaltado, no un dibujo). */
+function timesCell(list, sos, period) {
   if (list.length === 0) return { text: '—', color: '#cbd5e1' };
-  return { text: list.join(' · '), color: sos ? GRAY : '#0f172a', bold: !sos };
+  const chip = CHIP[sos ? 'SOS' : period];
+  return {
+    text: list.flatMap((t, i) => [
+      ...(i ? [{ text: '  ' }] : []),
+      // \u00a0 = espacio que no se corta: margen del "chip" a cada lado
+      { text: `\u00a0${t}\u00a0`, bold: true, ...chip },
+      { text: `${period}\u00a0`, fontSize: 5.5, ...chip },
+    ]),
+    lineHeight: 1.35,
+  };
 }
 
+const COLS = 5 + WEEK.length; // Medicamento, Dosis, AM, PM, Indicaciones + L…D
+const LINE = '#cbd5e1';
+
+/**
+ * Un residente = UNA tabla simple (sin bloques "inseparables" ni dibujos: el visor de PDF de iOS
+ * los dejaba en blanco). Fila 1: nombre; fila 2: encabezados (se repiten si la tabla sigue en la
+ * página siguiente); las casillas L…D son celdas vacías con borde.
+ */
 function residentTable(r) {
-  const header = ['Medicamento', 'Dosis', 'Mañana · AM', 'Tarde/noche · PM', 'Indicaciones', WEEK.join('   ')].map((t, i) => ({
-    text: t,
-    style: 'th',
-    color: i === 2 ? '#b45309' : i === 3 ? '#4338ca' : GRAY,
-    alignment: i === 5 ? 'center' : 'left',
-  }));
+  const nameRow = [
+    {
+      colSpan: COLS,
+      fillColor: '#f1f5f9',
+      columns: [
+        { text: `${r.first_name} ${r.last_name}`, bold: true, fontSize: 9 },
+        { text: [roomLabel(r), r.show_site ? ` · ${r.site_name}` : ''].join(''), alignment: 'right', color: GRAY, fontSize: 8 },
+      ],
+    },
+    ...Array(COLS - 1).fill({}),
+  ];
+  const header = [
+    { text: 'Medicamento', style: 'th' },
+    { text: 'Dosis', style: 'th' },
+    { text: 'Mañana · AM', style: 'th', color: '#b45309' },
+    { text: 'Tarde/noche · PM', style: 'th', color: '#4338ca' },
+    { text: 'Indicaciones', style: 'th' },
+    ...WEEK.map((d) => ({ text: d, style: 'th', alignment: 'center' })),
+  ];
   const rows = r.medications.map((m) => {
     const am = m.times.filter(isAM);
     const pm = m.times.filter((t) => !isAM(t));
     const notes = [m.is_sos ? 'SOS' : null, m.schedule, m.instructions].filter(Boolean).join(' · ') || (m.is_sos ? 'Solo si se necesita' : '');
+    const fill = m.is_sos ? '#fef2f2' : undefined;
     return [
-      { text: m.name, bold: true, sos: m.is_sos },
-      m.dose,
-      timesCell(am, m.is_sos),
-      timesCell(pm, m.is_sos),
-      { text: !m.is_sos && m.times.length === 0 ? [notes, notes ? ' · ' : '', { text: 'Sin horario', color: '#b45309' }] : notes, color: '#334155' },
-      { columns: WEEK.map(() => box), columnGap: 3.5, width: 'auto' },
-    ].map((cell) => (typeof cell === 'string' ? { text: cell } : cell));
+      { text: m.name, bold: true },
+      { text: m.dose },
+      timesCell(am, m.is_sos, 'AM'),
+      timesCell(pm, m.is_sos, 'PM'),
+      !m.is_sos && m.times.length === 0
+        ? { text: [notes, notes ? ' · ' : '', { text: 'Sin horario', color: '#b45309' }], color: '#334155' }
+        : { text: notes, color: '#334155' },
+      ...WEEK.map(() => ({ text: ' ' })), // casilla para marcar a mano
+    ].map((cell) => ({ ...cell, fillColor: fill }));
   });
 
   return {
-    unbreakable: r.medications.length <= 14, // un residente no se corta entre páginas (si cabe)
     margin: [0, 0, 0, 8],
-    stack: [
-      {
-        table: {
-          widths: ['*'],
-          body: [
-            [
-              {
-                columns: [
-                  { text: `${r.first_name} ${r.last_name}`, bold: true, fontSize: 9 },
-                  { text: [roomLabel(r), r.show_site ? ` · ${r.site_name}` : ''].join(''), alignment: 'right', color: GRAY, fontSize: 8 },
-                ],
-                fillColor: '#f1f5f9',
-                margin: [3, 2, 3, 2],
-              },
-            ],
-          ],
-        },
-        layout: { hLineColor: () => '#cbd5e1', vLineColor: () => '#cbd5e1', hLineWidth: () => 0.6, vLineWidth: () => 0.6 },
-      },
-      {
-        table: { headerRows: 1, widths: [92, 52, 62, 62, '*', 'auto'], body: [header, ...rows] },
-        layout: {
-          hLineColor: (i) => (i <= 1 ? '#cbd5e1' : '#e2e8f0'),
-          vLineColor: () => '#cbd5e1',
-          hLineWidth: () => 0.6,
-          vLineWidth: (i, node) => (i === 0 || i === node.table.widths.length ? 0.6 : 0),
-          paddingTop: () => 2.5,
-          paddingBottom: () => 2.5,
-          paddingLeft: () => 3,
-          paddingRight: () => 3,
-          fillColor: (i, node) => (i > 0 && node.table.body[i]?.[0]?.sos ? '#fef2f2' : null),
-        },
-      },
-    ],
+    table: {
+      headerRows: 2,
+      keepWithHeaderRows: 1, // el nombre nunca queda solo al final de una página
+      dontBreakRows: true,
+      widths: [88, 50, 56, 56, '*', ...WEEK.map(() => 9)],
+      body: [nameRow, header, ...rows],
+    },
+    layout: {
+      hLineColor: () => LINE,
+      vLineColor: () => LINE,
+      hLineWidth: () => 0.6,
+      // Bordes: contorno + líneas de las casillas de la semana
+      vLineWidth: (i, node) => (i === 0 || i === node.table.widths.length || i >= 5 ? 0.6 : 0),
+      paddingTop: () => 2.5,
+      paddingBottom: () => 2.5,
+      paddingLeft: (i) => (i >= 5 ? 1 : 3),
+      paddingRight: (i) => (i >= 5 ? 1 : 3),
+    },
   };
 }
 
@@ -131,7 +153,12 @@ export async function buildPillboxPdf({ residents, siteName, allSites, today }) 
           { stack: [`Impreso el ${printedOn}`, 'Semana del ____ al ____'], alignment: 'right', color: GRAY, fontSize: 8, margin: [0, 8, 0, 0] },
         ],
       },
-      { canvas: [{ type: 'line', x1: 0, y1: 4, x2: 539, y2: 4, lineWidth: 1.5, lineColor: BRAND }], margin: [0, 2, 0, 10] },
+      // Línea de marca bajo el encabezado (como borde de tabla: sin dibujos vectoriales)
+      {
+        table: { widths: ['*'], body: [[{ text: '', border: [false, false, false, true], margin: [0, 0, 0, 0] }]] },
+        layout: { hLineWidth: () => 1.5, hLineColor: () => BRAND, paddingTop: () => 0, paddingBottom: () => 0 },
+        margin: [0, 2, 0, 10],
+      },
       ...(list.length ? list.map(residentTable) : [{ text: 'No hay residentes con medicamentos registrados.', color: GRAY }]),
     ],
     footer: (page, pages) => ({
@@ -163,17 +190,38 @@ export async function buildPillboxPdf({ residents, siteName, allSites, today }) 
   return { blob, filename: `pastillero-${slug}-${today}.pdf` };
 }
 
-/** ¿Conviene el PDF + menú de compartir? (celulares y app instalada; en el computador se usa la vista de impresión) */
-export function preferPdfShare() {
-  const standalone = window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
-  const mobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  return standalone || mobile;
+/** ¿Se está usando como app instalada (pantalla de inicio) y no en el navegador? */
+export function isInstalledApp() {
+  return window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true;
 }
 
 /**
- * Abre el menú nativo para compartir/imprimir el PDF. Si el navegador no puede compartir archivos,
- * lo descarga. Debe llamarse directo desde el toque del usuario (iOS lo exige).
- * Devuelve 'shared' | 'cancelled' | 'retry' (iOS perdió el toque: hay que tocar de nuevo) | 'downloaded'.
+ * Navegador (computador o celular): abre el PDF en otra pestaña; ahí el visor del navegador
+ * permite imprimir, guardar o compartir. Debe llamarse directo desde el clic (si no, se bloquea
+ * como ventana emergente; en ese caso se descarga).
+ */
+export function openPdfInTab({ blob, filename }) {
+  const url = URL.createObjectURL(blob);
+  const tab = window.open(url, '_blank');
+  setTimeout(() => URL.revokeObjectURL(url), 5 * 60_000);
+  if (tab) return 'opened';
+  downloadBlob(url, filename);
+  return 'downloaded';
+}
+
+function downloadBlob(url, filename) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/**
+ * App instalada: menú nativo para compartir/imprimir el PDF (en iOS window.print() no funciona ahí).
+ * Si el sistema no puede compartir archivos, se descarga. Debe llamarse directo desde el toque.
+ * Devuelve 'shared' | 'cancelled' | 'retry' (iOS perdió el toque) | 'downloaded'.
  */
 export async function sharePdf({ blob, filename }) {
   const file = new File([blob], filename, { type: 'application/pdf' });
@@ -188,12 +236,7 @@ export async function sharePdf({ blob, filename }) {
     }
   }
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  downloadBlob(url, filename);
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return 'downloaded';
 }
