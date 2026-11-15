@@ -220,6 +220,8 @@ export default function AdminResidentsView() {
               <ul className="divide-y divide-slate-100 md:hidden">
                 {data.map((r) => (
                   <li key={r.id} className="flex items-center gap-3 px-4 py-3">
+                    {/* Foto y nombre abren la ficha (en el celular no hace falta apuntarle al ojo) */}
+                    <Link to={`/residentes/${r.id}`} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg active:bg-slate-50">
                     <ResidentAvatar resident={r} />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium text-slate-900">
@@ -236,6 +238,7 @@ export default function AdminResidentsView() {
                         </div>
                       )}
                     </div>
+                    </Link>
                     {actions(r)}
                   </li>
                 ))}

@@ -10,7 +10,7 @@ import { ResidentAvatar } from '@/features/residents/ResidentAvatar';
 import { roomLabel } from '@/lib/utils';
 import { medicationsApi } from './medicationsApi';
 import { PillboxTable } from './PillboxTable';
-import { buildPillboxPdf, preferPdfShare, sharePdf } from './pillboxPdf';
+import { buildPillboxPdf, isInstalledApp, openPdfInTab, sharePdf } from './pillboxPdf';
 
 const norm = (s) =>
   s
@@ -32,15 +32,15 @@ export default function PillboxPage() {
       .catch((err) => setState((s) => ({ ...s, loading: false, error: err.message })));
   }, [siteId]);
 
-  // Celular / app instalada: PDF real + menú nativo de compartir (Imprimir, Archivos, WhatsApp…).
-  // iOS no permite window.print() en la app instalada. En el computador: vista de impresión en otra pestaña.
-  const usePdf = useRef(preferPdfShare()).current;
+  // Siempre se genera un PDF real. App instalada → menú nativo de compartir (iOS no permite
+  // window.print() ahí). Navegador → el PDF se abre en otra pestaña (imprimir, guardar, compartir).
+  const installed = useRef(isInstalledApp()).current;
   const [pdf, setPdf] = useState({ file: null, building: false, error: '', note: '' });
   const siteName = currentSite ? `Sede ${currentSite.name}` : 'Todas las sedes';
 
   // El PDF se prepara apenas llegan los datos: así el toque abre el menú al instante (iOS lo exige)
   useEffect(() => {
-    if (!usePdf || state.loading || !state.today) return undefined;
+    if (state.loading || !state.today) return undefined;
     let alive = true;
     setPdf({ file: null, building: true, error: '', note: '' });
     buildPillboxPdf({ residents: state.residents, siteName, allSites: !siteId, today: state.today })
@@ -49,16 +49,12 @@ export default function PillboxPage() {
     return () => {
       alive = false;
     };
-  }, [usePdf, state.loading, state.today, state.residents, siteName, siteId]);
+  }, [state.loading, state.today, state.residents, siteName, siteId]);
 
   async function openPrint() {
-    if (!usePdf) {
-      window.open(`/pastillero/imprimir${siteId ? `?sede=${siteId}` : ''}`, '_blank');
-      return;
-    }
     if (!pdf.file) return;
     try {
-      const result = await sharePdf(pdf.file);
+      const result = installed ? await sharePdf(pdf.file) : openPdfInTab(pdf.file);
       const notes = {
         retry: 'Toca el botón de nuevo para abrir el menú.',
         downloaded: 'El PDF se descargó: ábrelo para imprimirlo o compartirlo.',
@@ -82,20 +78,18 @@ export default function PillboxPage() {
             {currentSite ? `Sede ${currentSite.name}` : 'Todas las sedes'} · {state.residents.length} residentes · {totalMeds} medicamentos
           </p>
         </div>
-        <Button onClick={openPrint} disabled={state.loading || state.residents.length === 0 || (usePdf && !pdf.file)}>
-          {usePdf ? (
-            pdf.building ? (
-              <>
-                <Loader2 className="size-4 animate-spin" /> Preparando PDF…
-              </>
-            ) : (
-              <>
-                <Share className="size-4" /> Imprimir / compartir PDF
-              </>
-            )
+        <Button onClick={openPrint} disabled={state.loading || state.residents.length === 0 || !pdf.file}>
+          {pdf.building ? (
+            <>
+              <Loader2 className="size-4 animate-spin" /> Preparando PDF…
+            </>
+          ) : installed ? (
+            <>
+              <Share className="size-4" /> Imprimir / compartir PDF
+            </>
           ) : (
             <>
-              <Printer className="size-4" /> Imprimir
+              <Printer className="size-4" /> Imprimir / PDF
             </>
           )}
         </Button>

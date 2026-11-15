@@ -17,7 +17,6 @@ const DailyLogFormPage = lazy(() => import('@/features/daily-log/DailyLogFormPag
 const SupportPage = lazy(() => import('@/features/support/SupportPage'));
 const MedicationRoundsPage = lazy(() => import('@/features/medications/MedicationRoundsPage'));
 const PillboxPage = lazy(() => import('@/features/medications/PillboxPage'));
-const PillboxPrintPage = lazy(() => import('@/features/medications/PillboxPrintPage'));
 const BookingsPage = lazy(() => import('@/features/bookings/BookingsPage'));
 const PublicBookingPage = lazy(() => import('@/features/bookings/public/PublicBookingPage'));
 const CancelBookingPage = lazy(() => import('@/features/bookings/public/CancelBookingPage'));
@@ -45,8 +44,8 @@ export default function App() {
             </Route>
 
             <Route element={<RequireAuth />}>
-              {/* Hoja para imprimir: pestaña aparte, sin menú ni avisos */}
-              <Route path="pastillero/imprimir" element={<PillboxPrintPage />} />
+              {/* La hoja para imprimir ahora es un PDF (desde Pastillero) */}
+              <Route path="pastillero/imprimir" element={<Navigate to="/pastillero" replace />} />
 
               <Route element={<AppLayout />}>
                 <Route index element={<Navigate to="/residentes" replace />} />
