@@ -7,6 +7,8 @@ import { Alert, Spinner } from '@/components/ui/Feedback';
 import { useAppConfig } from '@/features/app-config/AppConfigContext';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { ShiftsEditor } from './ShiftsEditor';
+import { MailCard } from './MailCard';
 
 const TONES = [
   { value: 'info', label: 'Informativo (azul)', className: 'bg-brand-600 text-white' },
@@ -48,6 +50,8 @@ export function ConfigTab() {
   return (
     <div className="space-y-4">
       <BannerEditor initial={settings.banner} onSaved={onSaved} />
+      <ShiftsEditor />
+      <MailCard />
       <div className="grid gap-4 lg:grid-cols-2">
         <CatalogEditor name="isapres" title="Isapres (y Dipreca / Capredena)" initial={settings.isapres} onSaved={onSaved} />
         <CatalogEditor name="ambulances" title="Servicios de ambulancia" initial={settings.ambulances} onSaved={onSaved} />

@@ -13,6 +13,11 @@ const REASONS = {
   inactive: { label: 'Cuenta desactivada', variant: 'muted' },
   rate_limited: { label: 'Bloqueado por intentos', variant: 'danger' },
   locked: { label: 'Cuenta bloqueada 15 min', variant: 'danger' },
+  reset_requested: { label: 'Pidió restablecer clave', variant: 'brand' },
+  password_reset: { label: 'Cambió clave por correo', variant: 'success' },
+  reset_unknown: { label: 'Restablecer: correo no registrado', variant: 'muted' },
+  reset_limited: { label: 'Restablecer: demasiados pedidos', variant: 'warning' },
+  reset_mail_error: { label: 'Restablecer: falló el correo', variant: 'danger' },
 };
 
 /** Historial de inicios de sesión: detectar intentos raros o a quien olvidó su clave. */

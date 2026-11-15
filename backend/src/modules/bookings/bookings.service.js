@@ -131,7 +131,49 @@ async function findGuardianByDoc({ doc_type: docType, doc_number: docNumber }) {
 export async function getPublicConfig() {
   const settings = await getSettingsOrThrow();
   const { rows: sites } = await query('SELECT id, name FROM sites ORDER BY id');
-  return { enabled: settings.enabled, cutoff_time: settings.cutoff_time, days_ahead: settings.days_ahead, sites };
+  return { enabled: settings.enabled, cutoff_time: settings.cutoff_time, days_ahead: settings.days_ahead, limits: limitsOf(settings), sites };
+}
+
+// --- Límites de la página pública (configurables en Soporte) ---
+
+export const DEFAULT_LIMITS = { per_person_day: 1, per_person_week: 3, per_resident_day: 2 };
+const limitsOf = (settings) => ({ ...DEFAULT_LIMITS, ...(settings.limits ?? {}) });
+
+/**
+ * Una "persona" es el mismo documento o el mismo teléfono (así no se esquiva cambiando el pasaporte).
+ * Solo cuentan las reservas vigentes; cancelar o que el equipo rechace libera el cupo.
+ */
+async function assertPublicLimits(client, limits, { now, date, docType, docNumber, phone, residentId }) {
+  await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking-person:${docType}:${docNumber}`]);
+  const { rows } = await client.query(
+    `SELECT count(*) FILTER (WHERE visit_date = $4)::int AS same_day,
+            count(*)::int AS upcoming
+       FROM visit_bookings
+      WHERE status IN ${ACTIVE} AND visit_date >= $5
+        AND ((doc_type = $1 AND doc_number = $2) OR ($3::text IS NOT NULL AND phone = $3))`,
+    [docType, docNumber, phone ?? null, date, now.date],
+  );
+  if (rows[0].same_day >= limits.per_person_day) {
+    throw AppError.conflict(
+      limits.per_person_day === 1
+        ? 'Ya tienes una visita reservada para ese día. Elige otro día.'
+        : `Ya tienes el máximo de ${limits.per_person_day} visitas para ese día. Elige otro día.`,
+    );
+  }
+  if (rows[0].upcoming >= limits.per_person_week) {
+    throw AppError.conflict(
+      `Ya tienes ${limits.per_person_week} visitas reservadas, que es el máximo por semana. Si necesitas otro horario, cancela una primero.`,
+    );
+  }
+  if (residentId) {
+    const { rows: r } = await client.query(
+      `SELECT count(*)::int AS n FROM visit_bookings WHERE status IN ${ACTIVE} AND resident_id = $1 AND visit_date = $2`,
+      [residentId, date],
+    );
+    if (r[0].n >= limits.per_resident_day) {
+      throw AppError.conflict('Ese día ya tiene el máximo de visitas para esta persona. Elige otro día.');
+    }
+  }
 }
 
 /** Días y bloques con cupo de una sede. `staff` = vista del equipo (desde hoy, sin hora límite). */
@@ -198,10 +240,14 @@ function newCode() {
   return Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 }
 
-/** Inserta con bloqueo por (sede, día, bloque) para que dos personas no tomen el último cupo a la vez. */
-async function insertBooking(row, block) {
+/**
+ * Inserta con bloqueo por (sede, día, bloque) para que dos personas no tomen el último cupo a la vez.
+ * `beforeInsert(client)` corre dentro de la misma transacción (límites por persona / residente).
+ */
+async function insertBooking(row, block, beforeInsert) {
   return withTransaction(async (client) => {
     await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`booking:${row.site_id}:${row.visit_date}:${block.start}`]);
+    if (beforeInsert) await beforeInsert(client);
     const counts = await countsBySlot(row.site_id, row.visit_date, row.visit_date, client);
     if ((counts.get(`${row.visit_date} ${block.start}`) ?? 0) >= block.capacity) {
       throw AppError.conflict('Ese bloque se acaba de llenar. Elige otro horario.');
@@ -280,6 +326,17 @@ export async function createPublicBooking(input, ip) {
   const saved = await insertBooking(
     { ...row, visit_date: input.date, doc_type: input.doc_type, doc_number: input.doc_number, status: 'BOOKED', source: 'PUBLIC', ip },
     block,
+    (client) =>
+      assertPublicLimits(client, limitsOf(settings), {
+        now,
+        date: input.date,
+        docType: input.doc_type,
+        docNumber: input.doc_number,
+        phone: row.phone,
+        // Solo para apoderados verificados: con visitantes no verificados avisar "ese residente ya tiene
+        // visitas" revelaría que el residente existe
+        residentId: guardian ? row.resident_id : null,
+      }),
   );
   const { rows } = await query('SELECT name FROM sites WHERE id = $1', [row.site_id]);
   return { code: saved.code, date: input.date, start: block.start, end: block.end, site_name: rows[0].name, resident_label: residentLabel };

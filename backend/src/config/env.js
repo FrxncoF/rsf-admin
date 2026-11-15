@@ -29,6 +29,16 @@ export const env = Object.freeze({
   backupDir: path.resolve(process.env.BACKUP_DIR || 'backups'),
   backupKeep: Number(process.env.BACKUP_KEEP || 14),
   appVersion: process.env.APP_VERSION || '',
+  // Dirección pública del sitio (enlaces en los correos). Se configura: no se toma del request.
+  appUrl: (process.env.APP_URL || 'http://localhost').replace(/\/+$/, ''),
+  // Correo saliente (Zoho). Sin usuario/clave, los correos se muestran en la consola del servidor.
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtppro.zoho.com',
+    port: Number(process.env.SMTP_PORT || 465),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_APP_PASSWORD || '',
+    from: process.env.MAIL_FROM || '"Soporte Residencia San Francisco" <soporte@residenciasanfrancisco.cl>',
+  },
   // Cuenta SOPORTE inicial (opcional). Si el correo ya existe, se promueve a SOPORTE.
   support: {
     email: (process.env.SUPPORT_EMAIL || '').trim().toLowerCase(),

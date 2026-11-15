@@ -22,6 +22,8 @@ const BookingsPage = lazy(() => import('@/features/bookings/BookingsPage'));
 const PublicBookingPage = lazy(() => import('@/features/bookings/public/PublicBookingPage'));
 const CancelBookingPage = lazy(() => import('@/features/bookings/public/CancelBookingPage'));
 const PrivacyPage = lazy(() => import('@/features/bookings/public/PrivacyPage'));
+const ForgotPasswordPage = lazy(() => import('@/features/auth/PasswordResetPages').then((m) => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('@/features/auth/PasswordResetPages').then((m) => ({ default: m.ResetPasswordPage })));
 
 export default function App() {
   return (
@@ -34,6 +36,9 @@ export default function App() {
             <Route path="reservar" element={<PublicBookingPage />} />
             <Route path="reservar/cancelar" element={<CancelBookingPage />} />
             <Route path="reservar/privacidad" element={<PrivacyPage />} />
+            {/* Recuperar contraseña (sin sesión) */}
+            <Route path="olvide-contrasena" element={<ForgotPasswordPage />} />
+            <Route path="restablecer-contrasena" element={<ResetPasswordPage />} />
 
             <Route element={<GuestOnly />}>
               <Route path="/login" element={<LoginPage />} />
@@ -47,7 +52,10 @@ export default function App() {
                 <Route index element={<Navigate to="/residentes" replace />} />
                 <Route path="residentes" element={<ResidentsPage />} />
                 <Route path="residentes/:id" element={<ResidentDetailPage />} />
-                <Route path="residentes/:id/ficha/nueva" element={<DailyLogFormPage />} />
+                {/* Ficha del turno en curso, o una ficha específica (editable mientras dure su turno) */}
+                <Route path="residentes/:id/ficha" element={<DailyLogFormPage />} />
+                <Route path="residentes/:id/ficha/nueva" element={<Navigate to=".." relative="path" replace />} />
+                <Route path="residentes/:id/ficha/:logId" element={<DailyLogFormPage />} />
                 <Route path="medicacion" element={<MedicationRoundsPage />} />
                 <Route path="pastillero" element={<PillboxPage />} />
                 {/* Visitas = agenda por bloques (reservas de familias + agendadas por el equipo) */}

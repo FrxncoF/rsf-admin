@@ -6,6 +6,7 @@ import { env } from '../../config/env.js';
 import { getUfStatus } from '../indicators/uf.service.js';
 import { listBackups } from './backups.service.js';
 import { anonymizeOldBookings } from '../bookings/bookings.service.js';
+import { pruneResets } from '../auth/passwordReset.service.js';
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const MIGRATIONS_DIR = path.join(APP_ROOT, 'migrations');
@@ -121,4 +122,5 @@ export async function pruneLogs() {
   await query('DELETE FROM revoked_tokens WHERE expires_at < now()');
   // Reservas de visitas: datos personales de no apoderados se anonimizan a los 12 meses
   await anonymizeOldBookings();
+  await pruneResets();
 }

@@ -2,7 +2,8 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { verifyToken } from '../../middlewares/auth.js';
 import { parse } from '../../utils/validation.js';
-import { loginSchema, updateProfileSchema } from './auth.validators.js';
+import { forgotPasswordSchema, loginSchema, resetCheckSchema, resetPasswordSchema, updateProfileSchema } from './auth.validators.js';
+import { checkResetToken, requestPasswordReset, resetPassword } from './passwordReset.service.js';
 import {
   authenticate,
   cookieOptions,
@@ -38,6 +39,43 @@ const profileLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true,
   message: { error: 'Demasiados intentos. Intenta nuevamente en unos minutos.' },
+});
+
+// Olvidé mi contraseña: pocos intentos por IP (además del tope de correos por cuenta en el servicio)
+const resetLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Intenta nuevamente en unos minutos.' },
+});
+// Usar el enlace (revisar / guardar clave): el enlace es imposible de adivinar, el límite solo frena abusos
+const resetTokenLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Intenta nuevamente en unos minutos.' },
+});
+
+authRouter.post('/forgot-password', resetLimiter, async (req, res) => {
+  const { email } = parse(forgotPasswordSchema, req.body);
+  // Respuesta inmediata e igual exista o no la cuenta (ni el tiempo de respuesta lo delata)
+  requestPasswordReset(email, { ip: req.ip, userAgent: req.get('user-agent') }).catch((err) =>
+    console.error('[auth] olvidé mi contraseña:', err.message),
+  );
+  res.json({ ok: true });
+});
+
+authRouter.post('/reset-password/check', resetTokenLimiter, async (req, res) => {
+  const { token } = parse(resetCheckSchema, req.body);
+  res.json(await checkResetToken(token));
+});
+
+authRouter.post('/reset-password', resetTokenLimiter, async (req, res) => {
+  const { token, password } = parse(resetPasswordSchema, req.body);
+  await resetPassword(token, password, { ip: req.ip, userAgent: req.get('user-agent') });
+  res.json({ ok: true });
 });
 
 authRouter.post('/login', loginLimiter, async (req, res) => {

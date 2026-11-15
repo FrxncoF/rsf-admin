@@ -21,7 +21,9 @@ async function recentFailures(email) {
       WHERE lower(email) = lower($1) AND success = FALSE AND reason = 'bad_credentials'
         AND created_at > GREATEST(
           now() - make_interval(mins => $2),
-          COALESCE((SELECT max(created_at) FROM login_events WHERE lower(email) = lower($1) AND success), '-infinity'))`,
+          -- Solo un inicio de sesión real (o un cambio de clave por enlace) reinicia el conteo
+          COALESCE((SELECT max(created_at) FROM login_events
+                     WHERE lower(email) = lower($1) AND success AND reason IN ('ok', 'password_reset')), '-infinity'))`,
     [email, LOCK_MINUTES],
   );
   return rows[0].n;

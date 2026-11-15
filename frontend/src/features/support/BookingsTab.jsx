@@ -9,10 +9,12 @@ import { cn } from '@/lib/utils';
 import { dayTitle } from '@/features/bookings/bookingsApi';
 
 /** Configuración de la página pública de reservas: bloques, cupos, hora límite y días bloqueados. */
-const toBody = ({ enabled, cutoff_time, days_ahead, blocks, blocked_dates }) => ({
+const DEFAULT_LIMITS = { per_person_day: 1, per_person_week: 3, per_resident_day: 2 };
+const toBody = ({ enabled, cutoff_time, days_ahead, blocks, blocked_dates, limits }) => ({
   enabled,
   cutoff_time,
   days_ahead: Number(days_ahead),
+  limits: Object.fromEntries(Object.entries({ ...DEFAULT_LIMITS, ...limits }).map(([k, v]) => [k, Number(v)])),
   blocks,
   blocked_dates,
 });
@@ -118,6 +120,36 @@ export function BookingsTab() {
             <Field label="Días hacia adelante" htmlFor="days_ahead" hint="Hasta cuántos días se puede reservar">
               <Input id="days_ahead" type="number" min={1} max={60} value={values.days_ahead} onChange={(e) => update({ days_ahead: e.target.value })} />
             </Field>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Límites por familia</CardTitle>
+          <p className="text-sm text-slate-500">
+            Se aplican en la página pública. Una persona es el mismo RUT/documento o el mismo teléfono. Cancelar o rechazar una reserva libera el
+            cupo. El equipo puede agendar por sobre estos límites.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {[
+              ['per_person_day', 'Visitas por persona al día', 'Ej: 1 = una visita diaria'],
+              ['per_person_week', 'Visitas por persona en la semana', 'Reservas vigentes a futuro'],
+              ['per_resident_day', 'Visitas por residente al día', 'Solo con apoderados registrados'],
+            ].map(([key, label, hint]) => (
+              <Field key={key} label={label} htmlFor={`lim_${key}`} hint={hint}>
+                <Input
+                  id={`lim_${key}`}
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={(values.limits ?? DEFAULT_LIMITS)[key]}
+                  onChange={(e) => update({ limits: { ...DEFAULT_LIMITS, ...values.limits, [key]: e.target.value } })}
+                />
+              </Field>
+            ))}
           </div>
         </CardContent>
       </Card>

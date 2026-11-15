@@ -45,6 +45,12 @@ services:
       # Proxies delante del backend: 1 = Nginx (local); 2 = Caddy + Nginx (producción)
       TRUST_PROXY: ${TRUST_PROXY:-1}
       APIKEYCMF: ${APIKEYCMF:-}
+      APP_URL: ${APP_URL:-http://localhost}
+      SMTP_HOST: ${SMTP_HOST:-smtppro.zoho.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_APP_PASSWORD: ${SMTP_APP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-Administradora}
