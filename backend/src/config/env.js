@@ -31,7 +31,17 @@ export const env = Object.freeze({
   appVersion: process.env.APP_VERSION || '',
   // Dirección pública del sitio (enlaces en los correos). Se configura: no se toma del request.
   appUrl: (process.env.APP_URL || 'http://localhost').replace(/\/+$/, ''),
-  // Correo saliente (Zoho). Sin usuario/clave, los correos se muestran en la consola del servidor.
+  // Correo saliente. Prioridad: API de Zoho por HTTPS (DigitalOcean bloquea los puertos SMTP)
+  // → SMTP → consola (sin credenciales, los correos se muestran en el registro del servidor).
+  zoho: {
+    clientId: process.env.ZOHO_CLIENT_ID || '',
+    clientSecret: process.env.ZOHO_CLIENT_SECRET || '',
+    refreshToken: process.env.ZOHO_REFRESH_TOKEN || '',
+    accountId: process.env.ZOHO_ACCOUNT_ID || '',
+    // Centro de datos de la cuenta (.com = EE.UU.; .eu, .in, .com.au… según donde se creó)
+    accountsUrl: (process.env.ZOHO_ACCOUNTS_URL || 'https://accounts.zoho.com').replace(/\/+$/, ''),
+    mailUrl: (process.env.ZOHO_MAIL_URL || 'https://mail.zoho.com').replace(/\/+$/, ''),
+  },
   smtp: {
     host: process.env.SMTP_HOST || 'smtppro.zoho.com',
     port: Number(process.env.SMTP_PORT || 465),

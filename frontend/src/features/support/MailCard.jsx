@@ -44,7 +44,10 @@ export function MailCard() {
         <CardTitle className="flex items-center gap-2">
           <Mail className="size-5 text-brand-600" /> Correo saliente
         </CardTitle>
-        <p className="text-sm text-slate-500">Se usa para "Olvidé mi contraseña". Las credenciales van solo en el archivo .env del servidor.</p>
+        <p className="text-sm text-slate-500">
+          Se usa para "Olvidé mi contraseña". Las credenciales van solo en el archivo .env del servidor. En DigitalOcean se usa la API de Zoho
+          (los puertos SMTP están bloqueados).
+        </p>
       </CardHeader>
       <CardContent className="space-y-3">
         {!info ? (
@@ -54,10 +57,12 @@ export function MailCard() {
             <dl className="grid gap-x-4 gap-y-1.5 text-sm sm:grid-cols-[auto_1fr]">
               <dt className="text-slate-500">Estado</dt>
               <dd>
-                {info.configured ? (
-                  <Badge variant="success">Configurado</Badge>
+                {info.mode === 'zoho-api' ? (
+                  <Badge variant="success">Configurado · API de Zoho</Badge>
+                ) : info.mode === 'smtp' ? (
+                  <Badge variant="success">Configurado · SMTP</Badge>
                 ) : (
-                  <Badge variant="warning">Modo prueba (sin SMTP)</Badge>
+                  <Badge variant="warning">Modo prueba (sin credenciales)</Badge>
                 )}
               </dd>
               <dt className="text-slate-500">Remitente</dt>
@@ -69,7 +74,8 @@ export function MailCard() {
             </dl>
             {!info.configured && (
               <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900 ring-1 ring-amber-200">
-                Faltan SMTP_USER y SMTP_APP_PASSWORD en el .env del servidor. Mientras tanto los correos se muestran en la consola del backend.
+                Faltan ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET y ZOHO_REFRESH_TOKEN en el .env del servidor (o SMTP_USER y SMTP_APP_PASSWORD
+                donde el puerto de correo esté abierto). Mientras tanto los correos se muestran en la consola del backend.
               </p>
             )}
             <Alert>{error}</Alert>

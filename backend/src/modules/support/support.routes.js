@@ -5,7 +5,7 @@ import { parse } from '../../utils/validation.js';
 import { CATALOGS, getSetting, setSetting } from '../settings/settings.service.js';
 import { bookingSettingsSchema } from '../bookings/bookings.validators.js';
 import { shiftSettingsSchema } from '../daily-logs/dailyLogs.validators.js';
-import { emailLayout, mailConfigured, sendMail } from '../../utils/mailer.js';
+import { emailLayout, mailConfigured, mailMode, sendMail } from '../../utils/mailer.js';
 import { env } from '../../config/env.js';
 import * as support from './support.service.js';
 import { createBackup, listBackups } from './backups.service.js';
@@ -80,7 +80,16 @@ supportRouter.get('/settings', async (_req, res) => {
 // --- Correo saliente ---
 supportRouter.get('/mail', (_req, res) => {
   // Nunca se exponen las credenciales: solo si están puestas y desde dónde se envía
-  res.json({ data: { configured: mailConfigured(), host: env.smtp.host, from: env.smtp.from, app_url: env.appUrl } });
+  const mode = mailMode();
+  res.json({
+    data: {
+      configured: mailConfigured(),
+      mode,
+      host: mode === 'zoho-api' ? `${env.zoho.mailUrl} (API, HTTPS)` : `${env.smtp.host}:${env.smtp.port} (SMTP)`,
+      from: env.smtp.from,
+      app_url: env.appUrl,
+    },
+  });
 });
 
 supportRouter.post('/mail/test', async (req, res) => {
