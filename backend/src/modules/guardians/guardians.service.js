@@ -18,11 +18,19 @@ const COLUMNS = `
     WHERE rg.guardian_id = g.id
   ), '[]'::json) AS residents`;
 
-export async function listGuardians({ search, status, page, pageSize }) {
+export async function listGuardians({ search, site_id: siteId, status, page, pageSize }) {
   const where = [];
   const params = [];
   if (status === 'active') where.push('g.is_active = TRUE');
   if (status === 'inactive') where.push('g.is_active = FALSE');
+
+  // El apoderado no tiene sede: pertenece a la sede de sus residentes
+  if (siteId) {
+    params.push(siteId);
+    where.push(`EXISTS (
+      SELECT 1 FROM resident_guardians rg JOIN residents r ON r.id = rg.resident_id
+       WHERE rg.guardian_id = g.id AND r.site_id = $${params.length})`);
+  }
 
   if (search) {
     params.push(`%${escapeLike(search.toLowerCase())}%`);

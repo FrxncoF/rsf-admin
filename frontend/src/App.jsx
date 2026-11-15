@@ -13,9 +13,15 @@ import { ForbiddenPage, NotFoundPage } from '@/pages/StatusPages';
 const UsersPage = lazy(() => import('@/features/users/UsersPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const GuardiansPage = lazy(() => import('@/features/guardians/GuardiansPage'));
-const VisitsPage = lazy(() => import('@/features/visits/VisitsPage'));
 const DailyLogFormPage = lazy(() => import('@/features/daily-log/DailyLogFormPage'));
 const SupportPage = lazy(() => import('@/features/support/SupportPage'));
+const MedicationRoundsPage = lazy(() => import('@/features/medications/MedicationRoundsPage'));
+const PillboxPage = lazy(() => import('@/features/medications/PillboxPage'));
+const PillboxPrintPage = lazy(() => import('@/features/medications/PillboxPrintPage'));
+const BookingsPage = lazy(() => import('@/features/bookings/BookingsPage'));
+const PublicBookingPage = lazy(() => import('@/features/bookings/public/PublicBookingPage'));
+const CancelBookingPage = lazy(() => import('@/features/bookings/public/CancelBookingPage'));
+const PrivacyPage = lazy(() => import('@/features/bookings/public/PrivacyPage'));
 
 export default function App() {
   return (
@@ -24,17 +30,29 @@ export default function App() {
       <AuthProvider>
         <Suspense fallback={<FullScreenLoader />}>
           <Routes>
+            {/* Públicas (familias, sin login): reservas de visitas */}
+            <Route path="reservar" element={<PublicBookingPage />} />
+            <Route path="reservar/cancelar" element={<CancelBookingPage />} />
+            <Route path="reservar/privacidad" element={<PrivacyPage />} />
+
             <Route element={<GuestOnly />}>
               <Route path="/login" element={<LoginPage />} />
             </Route>
 
             <Route element={<RequireAuth />}>
+              {/* Hoja para imprimir: pestaña aparte, sin menú ni avisos */}
+              <Route path="pastillero/imprimir" element={<PillboxPrintPage />} />
+
               <Route element={<AppLayout />}>
                 <Route index element={<Navigate to="/residentes" replace />} />
                 <Route path="residentes" element={<ResidentsPage />} />
                 <Route path="residentes/:id" element={<ResidentDetailPage />} />
                 <Route path="residentes/:id/ficha/nueva" element={<DailyLogFormPage />} />
-                <Route path="visitas" element={<VisitsPage />} />
+                <Route path="medicacion" element={<MedicationRoundsPage />} />
+                <Route path="pastillero" element={<PillboxPage />} />
+                {/* Visitas = agenda por bloques (reservas de familias + agendadas por el equipo) */}
+                <Route path="visitas" element={<BookingsPage />} />
+                <Route path="reservas" element={<Navigate to="/visitas" replace />} />
                 <Route path="configuracion" element={<SettingsPage />} />
 
                 <Route element={<RequireRole roles={[ROLES.ADMIN]} />}>

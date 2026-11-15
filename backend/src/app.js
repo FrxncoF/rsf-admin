@@ -13,9 +13,10 @@ import { guardiansRouter } from './modules/guardians/guardians.routes.js';
 import { sitesRouter } from './modules/sites/sites.routes.js';
 import { indicatorsRouter } from './modules/indicators/indicators.routes.js';
 import { dailyLogsRouter } from './modules/daily-logs/dailyLogs.routes.js';
-import { visitsRouter } from './modules/visits/visits.routes.js';
 import { settingsRouter } from './modules/settings/settings.routes.js';
 import { supportRouter } from './modules/support/support.routes.js';
+import { medicationsRouter } from './modules/medications/medications.routes.js';
+import { bookingsRouter, publicBookingsRouter } from './modules/bookings/bookings.routes.js';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler.js';
 
 export function createApp() {
@@ -64,9 +65,12 @@ export function createApp() {
   api.use('/sites', sitesRouter);
   api.use('/indicators', indicatorsRouter);
   api.use('/daily-logs', dailyLogsRouter);
-  api.use('/visits', visitsRouter);
   api.use('/settings', settingsRouter);
   api.use('/support', supportRouter);
+  api.use('/medications', medicationsRouter);
+  api.use('/bookings', bookingsRouter);
+  // Sin sesión: página pública de reservas de visitas
+  api.use('/public/bookings', publicBookingsRouter);
 
   app.use('/api', api);
   app.use(notFoundHandler);

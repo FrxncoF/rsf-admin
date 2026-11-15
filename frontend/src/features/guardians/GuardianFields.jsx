@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Field, Input, PhoneInput } from '@/components/ui/Form';
 import { formatRut, isValidRut } from '@/lib/rut';
 import { isValidLocalPhone, localDigits, PHONE_DIGITS, toStoredPhone } from '@/lib/phone';
@@ -11,7 +12,7 @@ export function validateGuardian(g) {
   if (g.full_name.trim().length < 2) errors.full_name = 'Ingresa el nombre del apoderado';
   if (!g.phone) errors.phone = 'Ingresa el teléfono';
   else if (!isValidLocalPhone(g.phone)) errors.phone = `Debe tener ${PHONE_DIGITS} dígitos (faltan ${PHONE_DIGITS - g.phone.length})`;
-  if (g.rut && !isValidRut(g.rut)) errors.rut = 'RUT inválido';
+  if (g.rut && !isValidRut(g.rut)) errors.rut = 'RUT inválido: revisa los números y el dígito verificador';
   if (g.email.trim() && !EMAIL_RE.test(g.email.trim())) errors.email = 'Correo inválido';
   return errors;
 }
@@ -39,6 +40,11 @@ export const toGuardianPayload = (g) => ({
 export function GuardianFields({ values, errors = {}, onChange, idPrefix }) {
   const fid = (field) => `${idPrefix}-${field}`;
   const set = (key, transform = (v) => v) => (e) => onChange(key, transform(e.target.value));
+  // Se valida mientras se escribe (módulo 11) para que no quede mal tipeado: con este RUT reserva visitas
+  // (el error se muestra al salir del campo, no mientras todavía se está escribiendo)
+  const [rutTouched, setRutTouched] = useState(false);
+  const rutOk = isValidRut(values.rut);
+  const rutError = errors.rut || (rutTouched && values.rut && !rutOk ? 'RUT inválido: revisa los números y el dígito verificador' : undefined);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -48,13 +54,14 @@ export function GuardianFields({ values, errors = {}, onChange, idPrefix }) {
       <Field label="Teléfono" htmlFor={fid('phone')} error={errors.phone} hint={`${PHONE_DIGITS} dígitos`}>
         <PhoneInput id={fid('phone')} value={values.phone} onChange={(digits) => onChange('phone', digits)} invalid={!!errors.phone} />
       </Field>
-      <Field label="RUT" htmlFor={fid('rut')} error={errors.rut} hint="Opcional">
+      <Field label="RUT" htmlFor={fid('rut')} error={rutError} hint={rutOk ? 'RUT válido ✓' : 'Lo usará para reservar visitas'}>
         <Input
           id={fid('rut')}
           placeholder="12.345.678-9"
           value={values.rut}
           onChange={set('rut', formatRut)}
-          aria-invalid={!!errors.rut}
+          onBlur={() => setRutTouched(true)}
+          aria-invalid={!!rutError}
           autoComplete="off"
         />
       </Field>

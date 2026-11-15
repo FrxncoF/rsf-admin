@@ -1,9 +1,11 @@
-import { Contact, DoorOpen, LifeBuoy, UserCog, Users } from 'lucide-react';
+import { ClipboardList, Contact, DoorOpen, LifeBuoy, Pill, UserCog, Users } from 'lucide-react';
 import { hasRole, ROLES } from '@/features/auth/AuthContext';
 
 // Ítems del sidebar. Agregar aquí los módulos de próximas fases.
 export const NAV_ITEMS = [
   { to: '/residentes', label: 'Residentes', icon: Users, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
+  { to: '/medicacion', label: 'Medicación', icon: Pill, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
+  { to: '/pastillero', label: 'Pastillero', icon: ClipboardList, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/apoderados', label: 'Apoderados', icon: Contact, roles: [ROLES.ADMIN] },
   { to: '/visitas', label: 'Visitas', icon: DoorOpen, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/usuarios', label: 'Usuarios', icon: UserCog, roles: [ROLES.ADMIN] },

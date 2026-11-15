@@ -45,3 +45,19 @@
 @utility pb-safe {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
+
+/* Hoja del pastillero: A4, con los colores de las horas (AM/PM) */
+@media print {
+  @page {
+    size: A4;
+    margin: 10mm;
+  }
+  html,
+  body {
+    background: #fff;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
