@@ -63,37 +63,46 @@ const EMPTY = {
   guardians: [EMPTY_LINK],
 };
 
-function validate(values) {
+/**
+ * `isEdit`: un residente que ya existe se puede guardar con datos pendientes (marcha blanca);
+ * solo se exige lo que identifica a la persona. Si un dato opcional viene escrito, igual se valida.
+ */
+function validate(values, isEdit = false) {
   const errors = {};
+  const need = !isEdit;
   if (!values.first_name.trim()) errors.first_name = 'Ingresa el nombre';
   if (!values.last_name.trim()) errors.last_name = 'Ingresa el apellido';
   if (!isValidRut(values.rut)) errors.rut = 'RUT inválido';
   if (!values.birth_date) errors.birth_date = 'Ingresa la fecha de nacimiento';
   else if (values.birth_date > today()) errors.birth_date = 'La fecha no puede ser futura';
   if (!values.site_id) errors.site_id = 'Selecciona la sede';
-  if (!values.room.trim()) errors.room = 'Ingresa la habitación';
+  if (need && !values.room.trim()) errors.room = 'Ingresa la habitación';
 
-  if (!values.admission_date) errors.admission_date = 'Ingresa la fecha de ingreso';
-  else if (values.admission_date > today()) errors.admission_date = 'La fecha no puede ser futura';
+  if (!values.admission_date) {
+    if (need) errors.admission_date = 'Ingresa la fecha de ingreso';
+  } else if (values.admission_date > today()) errors.admission_date = 'La fecha no puede ser futura';
   else if (values.birth_date && values.admission_date < values.birth_date) errors.admission_date = 'No puede ser antes del nacimiento';
-  if (!values.dependency_level) errors.dependency_level = 'Selecciona el índice de Katz';
-  if (!values.cognitive_level) errors.cognitive_level = 'Selecciona el índice de Pfeiffer';
-  if (!values.pressure_risk) errors.pressure_risk = 'Selecciona la escala de Norton';
+  if (need && !values.dependency_level) errors.dependency_level = 'Selecciona el índice de Katz';
+  if (need && !values.cognitive_level) errors.cognitive_level = 'Selecciona el índice de Pfeiffer';
+  if (need && !values.pressure_risk) errors.pressure_risk = 'Selecciona la escala de Norton';
 
   const fee = parseUfInput(values.monthly_fee_uf);
-  if (String(values.monthly_fee_uf).trim() === '') errors.monthly_fee_uf = 'Ingresa la mensualidad';
-  else if (!/^\d{1,5}([.,]\d{1,2})?$/.test(String(values.monthly_fee_uf).trim()) || !(fee > 0)) {
+  if (String(values.monthly_fee_uf).trim() === '') {
+    if (need) errors.monthly_fee_uf = 'Ingresa la mensualidad';
+  } else if (!/^\d{1,5}([.,]\d{1,2})?$/.test(String(values.monthly_fee_uf).trim()) || !(fee > 0)) {
     errors.monthly_fee_uf = 'Monto inválido (ej: 28,5)';
   }
-  if (!values.payment_due_day) errors.payment_due_day = 'Indica el día';
-  if (!values.ambulance) errors.ambulance = 'Selecciona la ambulancia';
-  if (!values.has_cesfam) errors.has_cesfam = 'Indica si está inscrito';
-  if (!values.health_system) errors.health_system = 'Selecciona la previsión';
-  else if (values.health_system === 'ISAPRE' && !values.isapre) errors.isapre = 'Selecciona la isapre';
+  if (need && !values.payment_due_day) errors.payment_due_day = 'Indica el día';
+  if (need && !values.ambulance) errors.ambulance = 'Selecciona la ambulancia';
+  if (need && !values.has_cesfam) errors.has_cesfam = 'Indica si está inscrito';
+  if (!values.health_system) {
+    if (need) errors.health_system = 'Selecciona la previsión';
+  } else if (values.health_system === 'ISAPRE' && !values.isapre) errors.isapre = 'Selecciona la isapre';
 
-  if (values.guardians.length < 1) errors.guardians = 'El residente debe tener al menos un apoderado';
+  if (need && values.guardians.length < 1) errors.guardians = 'El residente debe tener al menos un apoderado';
   values.guardians.forEach((link, i) => {
-    if (!link.relationship.trim()) errors[`guardians.${i}.relationship`] = 'Indica el parentesco';
+    if (isEdit && isBlankLink(link)) return;
+    if (need && !link.relationship.trim()) errors[`guardians.${i}.relationship`] = 'Indica el parentesco';
     if (link.mode === 'existing' && !link.selected) errors[`guardians.${i}.guardian_id`] = 'Busca y selecciona un apoderado, o crea uno nuevo';
     if (link.mode === 'new') {
       for (const [field, message] of Object.entries(validateGuardian(link.data))) {
@@ -109,16 +118,22 @@ function validate(values) {
   return errors;
 }
 
+// Apoderado agregado pero sin tocar: al editar se ignora en vez de exigirlo
+const isBlankLink = (link) => link.mode === 'existing' && !link.selected && !link.relationship.trim();
+
 const toFormLink = (g) => ({
   ...EMPTY_LINK,
   selected: g,
   relationship: !g.relationship || g.relationship === RELATIONSHIP_PENDING ? '' : g.relationship,
 });
 
-const toPayloadLink = (link) =>
-  link.mode === 'existing'
-    ? { guardian_id: link.selected.id, relationship: link.relationship.trim() }
-    : { guardian: toGuardianPayload(link.data), relationship: link.relationship.trim() };
+// Sin parentesco (solo al editar) queda "Por confirmar", que el detalle muestra como dato pendiente
+const toPayloadLink = (link) => {
+  const relationship = link.relationship.trim() || RELATIONSHIP_PENDING;
+  return link.mode === 'existing'
+    ? { guardian_id: link.selected.id, relationship }
+    : { guardian: toGuardianPayload(link.data), relationship };
+};
 
 export default function ResidentFormDialog({ open, resident, onClose, onSaved }) {
   const isEdit = Boolean(resident);
@@ -218,7 +233,7 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
 
   async function handleSubmit(e) {
     e.preventDefault();
-    const clientErrors = validate(values);
+    const clientErrors = validate(values, isEdit);
     setErrors(clientErrors);
     const missing = Object.keys(clientErrors).length;
     if (missing) {
@@ -238,21 +253,22 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
         rut: values.rut,
         birth_date: values.birth_date,
         site_id: Number(values.site_id),
-        room: values.room.trim(),
+        room: values.room.trim() || ROOM_PENDING,
         bed: values.bed.trim() || null,
-        admission_date: values.admission_date,
-        dependency_level: values.dependency_level,
-        cognitive_level: values.cognitive_level,
-        pressure_risk: values.pressure_risk,
-        monthly_fee_uf: String(values.monthly_fee_uf).trim(),
-        payment_due_day: Number(values.payment_due_day),
-        ambulance: values.ambulance,
-        has_cesfam: values.has_cesfam === 'yes',
+        // Vacío → null (solo posible al editar: al crear la validación lo exige)
+        admission_date: values.admission_date || null,
+        dependency_level: values.dependency_level || null,
+        cognitive_level: values.cognitive_level || null,
+        pressure_risk: values.pressure_risk || null,
+        monthly_fee_uf: String(values.monthly_fee_uf).trim() || null,
+        payment_due_day: values.payment_due_day ? Number(values.payment_due_day) : null,
+        ambulance: values.ambulance || null,
+        has_cesfam: values.has_cesfam ? values.has_cesfam === 'yes' : null,
         care_place: values.care_place.trim() || null,
-        health_system: values.health_system,
+        health_system: values.health_system || null,
         isapre: values.health_system === 'ISAPRE' ? values.isapre : null,
         is_active: values.is_active,
-        guardians: values.guardians.map(toPayloadLink),
+        guardians: values.guardians.filter((l) => !isBlankLink(l)).map(toPayloadLink),
       };
       let saved = isEdit ? await residentsApi.update(resident.id, payload) : await residentsApi.create(payload);
 
@@ -290,7 +306,11 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
       onClose={saving ? undefined : onClose}
       className="sm:max-w-2xl"
       title={isEdit ? 'Editar residente' : 'Nuevo residente'}
-      description={isEdit ? `${resident.first_name} ${resident.last_name}` : 'Completa los datos del residente.'}
+      description={
+        isEdit
+          ? `${resident.first_name} ${resident.last_name} · puedes guardar aunque falten datos y completarlos después`
+          : 'Completa los datos del residente.'
+      }
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={saving}>
@@ -575,7 +595,9 @@ export default function ResidentFormDialog({ open, resident, onClose, onSaved })
           <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-slate-900">Apoderados</h3>
-              <p className="text-xs text-slate-500">Obligatorio al menos uno · máximo {MAX_GUARDIANS}</p>
+              <p className="text-xs text-slate-500">
+                {isEdit ? 'Opcional por ahora' : 'Obligatorio al menos uno'} · máximo {MAX_GUARDIANS}
+              </p>
             </div>
             {values.guardians.length < MAX_GUARDIANS && (
               <Button type="button" variant="outline" size="sm" onClick={addGuardian}>

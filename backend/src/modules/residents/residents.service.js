@@ -41,6 +41,9 @@ const ADMIN_COLUMNS = `${BASE_COLUMNS},
 
 const CAREGIVER_COLUMNS = BASE_COLUMNS;
 
+// Horas del medicamento como ["08:00", "20:00"]
+export const MEDICATION_TIMES = `COALESCE((SELECT json_agg(to_char(t, 'HH24:MI') ORDER BY t) FROM unnest(m.times) t), '[]'::json)`;
+
 // Patologías y medicamentos: visibles para ambos roles en el detalle
 const CLINICAL_COLUMNS = `
   COALESCE((
@@ -49,9 +52,10 @@ const CLINICAL_COLUMNS = `
   ), '[]'::json) AS conditions,
   COALESCE((
     SELECT json_agg(json_build_object(
-      'id', m.id, 'name', m.name, 'dose', m.dose, 'schedule', m.schedule, 'instructions', m.instructions
-    ) ORDER BY lower(m.name))
-    FROM resident_medications m WHERE m.resident_id = r.id
+      'id', m.id, 'name', m.name, 'dose', m.dose, 'schedule', m.schedule, 'instructions', m.instructions,
+      'is_sos', m.is_sos, 'times', ${MEDICATION_TIMES}
+    ) ORDER BY m.is_sos, m.times[1] NULLS LAST, lower(m.name))
+    FROM resident_medications m WHERE m.resident_id = r.id AND m.ended_at IS NULL
   ), '[]'::json) AS medications`;
 
 const ADMIN_DETAIL_COLUMNS = `${ADMIN_COLUMNS}, ${CLINICAL_COLUMNS}`;
@@ -192,12 +196,25 @@ export async function updateResident(id, input, userId) {
   return getResident(id, { isAdmin: true });
 }
 
+/**
+ * Al desactivar un residente se desactivan también sus apoderados, salvo los que sigan
+ * a cargo de otro residente activo (un apoderado puede tener varios residentes).
+ * Al reactivarlo, sus apoderados vuelven a quedar activos.
+ */
 export async function setResidentStatus(id, isActive, userId) {
-  const { rowCount } = await query(
-    'UPDATE residents SET is_active = $1, updated_by = $2 WHERE id = $3',
-    [isActive, userId, id],
-  );
-  if (rowCount === 0) throw AppError.notFound('Residente no encontrado');
+  await withTransaction(async (client) => {
+    const { rowCount } = await client.query('UPDATE residents SET is_active = $1, updated_by = $2 WHERE id = $3', [isActive, userId, id]);
+    if (rowCount === 0) throw AppError.notFound('Residente no encontrado');
+    await client.query(
+      `UPDATE guardians g SET is_active = $1, updated_by = $2
+        WHERE g.is_active <> $1
+          AND g.id IN (SELECT guardian_id FROM resident_guardians WHERE resident_id = $3)
+          AND ($1 OR NOT EXISTS (
+            SELECT 1 FROM resident_guardians rg JOIN residents r ON r.id = rg.resident_id
+             WHERE rg.guardian_id = g.id AND r.id <> $3 AND r.is_active))`,
+      [isActive, userId, id],
+    );
+  });
   return getResident(id, { isAdmin: true });
 }
 
@@ -284,25 +301,31 @@ export async function deleteCondition(residentId, conditionId) {
 export async function addMedication(residentId, input, userId) {
   await assertResident(residentId);
   await query(
-    `INSERT INTO resident_medications (resident_id, name, dose, schedule, instructions, created_by, updated_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $6)`,
-    [residentId, input.name, input.dose, input.schedule, input.instructions, userId],
+    `INSERT INTO resident_medications (resident_id, name, dose, times, is_sos, schedule, instructions, created_by, updated_by)
+     VALUES ($1, $2, $3, $4::time[], $5, $6, $7, $8, $8)`,
+    [residentId, input.name, input.dose, input.times, input.is_sos, input.schedule, input.instructions, userId],
   );
   return getResident(residentId, { isAdmin: true });
 }
 
 export async function updateMedication(residentId, medicationId, input, userId) {
   const { rowCount } = await query(
-    `UPDATE resident_medications SET name = $1, dose = $2, schedule = $3, instructions = $4, updated_by = $5
-      WHERE id = $6 AND resident_id = $7`,
-    [input.name, input.dose, input.schedule, input.instructions, userId, medicationId, residentId],
+    `UPDATE resident_medications
+        SET name = $1, dose = $2, times = $3::time[], is_sos = $4, schedule = $5, instructions = $6, updated_by = $7
+      WHERE id = $8 AND resident_id = $9 AND ended_at IS NULL`,
+    [input.name, input.dose, input.times, input.is_sos, input.schedule, input.instructions, userId, medicationId, residentId],
   );
   if (rowCount === 0) throw AppError.notFound('Medicamento no encontrado');
   return getResident(residentId, { isAdmin: true });
 }
 
-export async function deleteMedication(residentId, medicationId) {
-  const { rowCount } = await query('DELETE FROM resident_medications WHERE id = $1 AND resident_id = $2', [medicationId, residentId]);
+/** Quitar de la ficha = baja lógica: las dosis ya registradas siguen en el historial. */
+export async function deleteMedication(residentId, medicationId, userId) {
+  const { rowCount } = await query(
+    `UPDATE resident_medications SET ended_at = now(), updated_by = $3
+      WHERE id = $1 AND resident_id = $2 AND ended_at IS NULL`,
+    [medicationId, residentId, userId],
+  );
   if (rowCount === 0) throw AppError.notFound('Medicamento no encontrado');
   return getResident(residentId, { isAdmin: true });
 }

@@ -9,8 +9,9 @@ import { Alert } from '@/components/ui/Feedback';
 import { residentsApi } from '../residentsApi';
 import { COGNITIVE_LEVELS, DEPENDENCY_LEVELS, PRESSURE_RISKS, healthLabel, optionOf } from '../constants';
 import { catalogLabel, useAppConfig } from '@/features/app-config/AppConfigContext';
+import { COMMON_TIMES, MedicationTimes, TimeChip } from '@/features/medications/time';
 
-const EMPTY_MED = { name: '', dose: '', schedule: '', instructions: '' };
+const EMPTY_MED = { name: '', dose: '', times: [], is_sos: false, schedule: '', instructions: '' };
 
 /**
  * Patologías y medicamentos. Ambos roles los ven; solo ADMIN agrega, edita o quita.
@@ -165,10 +166,11 @@ export default function ClinicalCard({ resident, canEdit, onChange }) {
               {medications.map((m) => (
                 <li key={m.id} className="flex items-start gap-3 px-3 py-2.5">
                   <Pill className="mt-0.5 size-4 shrink-0 text-accent-600" />
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 space-y-1">
                     <p className="text-sm text-slate-900">
                       <span className="font-semibold">{m.name}</span> · {m.dose}
                     </p>
+                    <MedicationTimes med={m} />
                     {(m.schedule || m.instructions) && (
                       <p className="text-xs text-slate-500">{[m.schedule, m.instructions].filter(Boolean).join(' · ')}</p>
                     )}
@@ -232,7 +234,11 @@ function MedicationDialog({ open, med, residentId, onClose, onSaved }) {
 
   useEffect(() => {
     if (!open) return;
-    setValues(med ? { ...EMPTY_MED, ...med, schedule: med.schedule ?? '', instructions: med.instructions ?? '' } : EMPTY_MED);
+    setValues(
+      med
+        ? { ...EMPTY_MED, ...med, times: med.times ?? [], schedule: med.schedule ?? '', instructions: med.instructions ?? '' }
+        : EMPTY_MED,
+    );
     setErrors({});
     setServerError('');
   }, [open, med]);
@@ -247,6 +253,7 @@ function MedicationDialog({ open, med, residentId, onClose, onSaved }) {
     const clientErrors = {};
     if (!values.name.trim()) clientErrors.name = 'Ingresa el medicamento';
     if (!values.dose.trim()) clientErrors.dose = 'Ingresa la dosis';
+    if (!values.is_sos && values.times.length === 0) clientErrors.times = 'Agrega al menos una hora, o márcalo como SOS';
     setErrors(clientErrors);
     if (Object.keys(clientErrors).length) return;
 
@@ -255,6 +262,8 @@ function MedicationDialog({ open, med, residentId, onClose, onSaved }) {
     const payload = {
       name: values.name.trim(),
       dose: values.dose.trim(),
+      times: values.times,
+      is_sos: values.is_sos,
       schedule: values.schedule.trim() || null,
       instructions: values.instructions.trim() || null,
     };
@@ -296,11 +305,21 @@ function MedicationDialog({ open, med, residentId, onClose, onSaved }) {
             <Input id={`${formId}-dose`} maxLength={60} placeholder="Ej: 50 mg" value={values.dose} onChange={set('dose')} aria-invalid={!!errors.dose} />
           </Field>
         </div>
-        <Field label="Horario / frecuencia (opcional)" htmlFor={`${formId}-schedule`} error={errors.schedule}>
+        <TimesField
+          id={`${formId}-times`}
+          times={values.times}
+          isSos={values.is_sos}
+          error={errors.times}
+          onChange={(patch) => {
+            setValues((v) => ({ ...v, ...patch }));
+            setErrors((errs) => ({ ...errs, times: undefined }));
+          }}
+        />
+        <Field label="Nota de horario (opcional)" htmlFor={`${formId}-schedule`} error={errors.schedule}>
           <Input
             id={`${formId}-schedule`}
             maxLength={80}
-            placeholder="Ej: 08:00 y 20:00 · cada 12 h · SOS"
+            placeholder="Ej: con desayuno · en ayunas"
             value={values.schedule}
             onChange={set('schedule')}
           />
@@ -316,6 +335,82 @@ function MedicationDialog({ open, med, residentId, onClose, onSaved }) {
         </Field>
       </form>
     </Dialog>
+  );
+}
+
+/** Horas del medicamento (24 h) con atajos, más la marca SOS. */
+function TimesField({ id, times, isSos, error, onChange }) {
+  const [draft, setDraft] = useState('');
+  const add = (t) => t && !times.includes(t) && onChange({ times: [...times, t].sort() });
+  const remove = (t) => onChange({ times: times.filter((x) => x !== t) });
+
+  return (
+    <div className="space-y-2.5 rounded-xl border border-slate-200 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor={id} className="text-sm font-medium text-slate-700">
+          {isSos ? 'Horas posibles (opcional)' : 'Horario (formato 24 h)'}
+        </label>
+        <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
+          <input
+            type="checkbox"
+            checked={isSos}
+            onChange={(e) => onChange({ is_sos: e.target.checked })}
+            className="size-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+          />
+          SOS (solo si se necesita)
+        </label>
+      </div>
+
+      {times.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5">
+          {times.map((t) => (
+            <li key={t}>
+              <TimeChip time={t} muted={isSos} className="py-1 pl-2 pr-1 text-sm">
+                <button type="button" aria-label={`Quitar ${t}`} onClick={() => remove(t)} className="rounded p-0.5 hover:bg-black/5">
+                  <X className="size-3.5" />
+                </button>
+              </TimeChip>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        {COMMON_TIMES.filter((t) => !times.includes(t)).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => add(t)}
+            className="rounded-md border border-dashed border-slate-300 px-2 py-1 text-xs font-medium tabular-nums text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700"
+          >
+            + {t}
+          </button>
+        ))}
+        <div className="flex items-center gap-1.5">
+          <Input
+            id={id}
+            type="time"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="h-8 w-28 text-sm"
+            aria-invalid={!!error}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={!draft}
+            onClick={() => {
+              add(draft);
+              setDraft('');
+            }}
+          >
+            Agregar
+          </Button>
+        </div>
+      </div>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+    </div>
   );
 }
 

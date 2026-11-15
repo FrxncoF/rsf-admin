@@ -10,11 +10,13 @@ import { Alert, EmptyState, Spinner } from '@/components/ui/Feedback';
 import { useDebouncedValue } from '@/lib/hooks';
 import { formatPhone, phoneHref } from '@/lib/phone';
 import { formatRut } from '@/lib/rut';
+import { useSites } from '@/features/sites/SiteContext';
 import { guardiansApi } from './guardiansApi';
 import { EMPTY_GUARDIAN, GuardianFields, toGuardianForm, toGuardianPayload, validateGuardian } from './GuardianFields';
 
 /** Módulo Apoderados (ADMIN): un apoderado puede estar a cargo de varios residentes. */
 export default function GuardiansPage() {
+  const { siteId, currentSite } = useSites();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('active');
   const debounced = useDebouncedValue(search);
@@ -27,10 +29,10 @@ export default function GuardiansPage() {
   const load = useCallback(() => {
     setState((s) => ({ ...s, loading: true }));
     guardiansApi
-      .list({ search: debounced.trim() || undefined, status, pageSize: 100 })
+      .list({ search: debounced.trim() || undefined, site_id: siteId ?? undefined, status, pageSize: 100 })
       .then(({ data, meta }) => setState({ data, meta, loading: false, error: '' }))
       .catch((err) => setState((s) => ({ ...s, loading: false, error: err.message })));
-  }, [debounced, status]);
+  }, [debounced, siteId, status]);
 
   useEffect(load, [load]);
 
@@ -56,6 +58,7 @@ export default function GuardiansPage() {
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">Apoderados</h1>
           <p className="mt-1 text-sm text-slate-500">
+            {currentSite ? `Sede ${currentSite.name} · ` : ''}
             {meta ? `${meta.total} apoderado${meta.total === 1 ? '' : 's'}` : 'Contactos responsables de los residentes'}
           </p>
         </div>

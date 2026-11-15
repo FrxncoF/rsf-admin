@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
-import { Activity, Bug, DatabaseBackup, KeyRound, Settings2 } from 'lucide-react';
+import { Activity, Bug, CalendarClock, DatabaseBackup, KeyRound, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { StatusTab } from './StatusTab';
 import { ErrorsTab } from './ErrorsTab';
 import { LoginsTab } from './LoginsTab';
 import { BackupsTab } from './BackupsTab';
 import { ConfigTab } from './ConfigTab';
+import { BookingsTab } from './BookingsTab';
 
 const TABS = [
   { key: 'status', label: 'Estado', icon: Activity, Component: StatusTab },
@@ -13,6 +14,7 @@ const TABS = [
   { key: 'logins', label: 'Accesos', icon: KeyRound, Component: LoginsTab },
   { key: 'backups', label: 'Respaldos', icon: DatabaseBackup, Component: BackupsTab },
   { key: 'config', label: 'Configuración', icon: Settings2, Component: ConfigTab },
+  { key: 'bookings', label: 'Reservas', icon: CalendarClock, Component: BookingsTab },
 ];
 const TAB_KEY = 'rsf:support-tab';
 

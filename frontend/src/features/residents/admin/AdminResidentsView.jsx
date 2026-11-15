@@ -283,8 +283,8 @@ export default function AdminResidentsView() {
         description={
           confirm &&
           (confirm.resident.is_active
-            ? `${confirm.resident.first_name} ${confirm.resident.last_name} dejará de aparecer para las cuidadoras y su cama quedará libre. Su historial se conserva y se puede reactivar.`
-            : `${confirm.resident.first_name} ${confirm.resident.last_name} volverá a aparecer para las cuidadoras.`)
+            ? `${confirm.resident.first_name} ${confirm.resident.last_name} dejará de aparecer para las cuidadoras y su cama quedará libre. Sus apoderados también se desactivan (salvo que tengan otro residente activo). Su historial se conserva y se puede reactivar.`
+            : `${confirm.resident.first_name} ${confirm.resident.last_name} volverá a aparecer para las cuidadoras y sus apoderados se reactivan.`)
         }
       />
     </div>

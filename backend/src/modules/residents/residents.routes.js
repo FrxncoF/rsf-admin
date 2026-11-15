@@ -110,5 +110,5 @@ residentsRouter.put('/:id/medications/:itemId', adminOnly, async (req, res) => {
 
 residentsRouter.delete('/:id/medications/:itemId', adminOnly, async (req, res) => {
   const { id, itemId } = parseSub(req.params);
-  res.json({ data: await residents.deleteMedication(id, itemId) });
+  res.json({ data: await residents.deleteMedication(id, itemId, req.user.id) });
 });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { verifyRole, verifyToken, ROLES } from '../../middlewares/auth.js';
 import { parse } from '../../utils/validation.js';
 import { CATALOGS, getSetting, setSetting } from '../settings/settings.service.js';
+import { bookingSettingsSchema } from '../bookings/bookings.validators.js';
 import * as support from './support.service.js';
 import { createBackup, listBackups } from './backups.service.js';
 import { AppError } from '../../utils/AppError.js';
@@ -71,6 +72,14 @@ const catalogSchema = z
 supportRouter.get('/settings', async (_req, res) => {
   const [banner, ...catalogs] = await Promise.all([getSetting('banner'), ...CATALOGS.map(getSetting)]);
   res.json({ data: { banner, ...Object.fromEntries(CATALOGS.map((k, i) => [k, catalogs[i]])) } });
+});
+
+supportRouter.get('/settings/bookings', async (_req, res) => {
+  res.json({ data: await getSetting('bookings') });
+});
+
+supportRouter.put('/settings/bookings', async (req, res) => {
+  res.json({ data: await setSetting('bookings', parse(bookingSettingsSchema, req.body), req.user.id) });
 });
 
 supportRouter.put('/settings/banner', async (req, res) => {

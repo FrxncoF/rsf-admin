@@ -37,10 +37,11 @@ const guardianLinkSchema = z
   });
 
 // El orden del arreglo define la posición: [0] = principal, [1] = secundario
-const guardiansSchema = z
-  .array(guardianLinkSchema, { message: 'Ingresa los apoderados' })
-  .min(MIN_GUARDIANS, 'El residente debe tener al menos un apoderado')
-  .max(MAX_GUARDIANS, 'Un residente puede tener máximo 2 apoderados')
+const guardiansList = (min) =>
+  z
+    .array(guardianLinkSchema, { message: 'Ingresa los apoderados' })
+    .min(min, 'El residente debe tener al menos un apoderado')
+    .max(MAX_GUARDIANS, 'Un residente puede tener máximo 2 apoderados')
   .refine((list) => {
     const ids = list.map((g) => g.guardian_id).filter(Boolean);
     return new Set(ids).size === ids.length;
@@ -82,10 +83,27 @@ const residentFields = {
   care_place: optionalText(120),
   health_system: z.enum(HEALTH_SYSTEMS, { message: 'Selecciona la previsión' }),
   isapre: z.string().trim().max(30).nullish(),
-  guardians: guardiansSchema,
+  guardians: guardiansList(MIN_GUARDIANS),
 };
 
-const admissionAfterBirth = (r) => r.admission_date >= r.birth_date;
+// Al editar un residente que ya existe se puede guardar con datos pendientes
+// (se van completando de a poco). Vacío ("" o null) se guarda como NULL.
+const pending = (schema) => z.preprocess((v) => (v === '' || v === undefined ? null : v), schema.nullable());
+const editFields = {
+  ...residentFields,
+  admission_date: pending(isoDate),
+  dependency_level: pending(residentFields.dependency_level),
+  cognitive_level: pending(residentFields.cognitive_level),
+  pressure_risk: pending(residentFields.pressure_risk),
+  monthly_fee_uf: pending(ufAmount),
+  payment_due_day: pending(residentFields.payment_due_day),
+  ambulance: pending(residentFields.ambulance),
+  has_cesfam: pending(residentFields.has_cesfam),
+  health_system: pending(residentFields.health_system),
+  guardians: guardiansList(0),
+};
+
+const admissionAfterBirth = (r) => !r.admission_date || r.admission_date >= r.birth_date;
 const admissionIssue = { message: 'El ingreso no puede ser antes del nacimiento', path: ['admission_date'] };
 
 const isapreGiven = (r) => r.health_system !== 'ISAPRE' || Boolean(r.isapre);
@@ -102,10 +120,10 @@ export const createResidentSchema = z
   .refine(isapreGiven, isapreIssue)
   .transform(normalizeIsapre);
 
-// PUT = reemplazo completo del recurso
+// PUT = reemplazo completo del recurso (con datos pendientes permitidos)
 export const updateResidentSchema = z
   .object({
-    ...residentFields,
+    ...editFields,
     is_active: z.boolean({ message: 'Indica el estado' }),
   })
   .refine(admissionAfterBirth, admissionIssue)
@@ -132,9 +150,18 @@ export const conditionSchema = z.object({
   name: text(120, 'Ingresa la patología'),
 });
 
+// Hora en formato 24 h ("08:00"); se guardan ordenadas y sin repetir
+const timeOfDay = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora inválida (usa formato 24 h, ej. 08:00)');
+
 export const medicationSchema = z.object({
   name: text(120, 'Ingresa el medicamento'),
   dose: text(60, 'Ingresa la dosis (ej. 50 mg)'),
-  schedule: optionalText(80),
+  times: z
+    .array(timeOfDay)
+    .max(12, 'Máximo 12 horarios')
+    .default([])
+    .transform((list) => [...new Set(list)].sort()),
+  is_sos: z.boolean().default(false),
+  schedule: optionalText(80), // nota de horario libre (ej. "con desayuno")
   instructions: optionalText(200),
 });
