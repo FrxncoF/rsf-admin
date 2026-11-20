@@ -102,7 +102,7 @@ export default function UsersPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="truncate font-medium text-slate-900">{u.full_name}</p>
-                    <Badge variant={u.role === 'SOPORTE' ? 'warning' : u.role === 'ADMIN' ? 'brand' : 'default'}>
+                    <Badge variant={u.role === 'SOPORTE' ? 'warning' : u.role === 'ADMIN' ? 'brand' : u.role === 'ENCARGADA' ? 'success' : 'default'}>
                       {ROLE_LABELS[u.role]}
                     </Badge>
                     {u.must_change_password && <Badge variant="muted">Clave temporal</Badge>}
@@ -254,6 +254,7 @@ function UserFormDialog({ open, user, isSelf, canAssignSupport, onClose, onSaved
         <Field label="Rol" htmlFor="u_role" error={errors.role}>
           <Select id="u_role" value={values.role} onChange={set('role')} disabled={isSelf}>
             <option value="CUIDADORA">Cuidadora</option>
+            <option value="ENCARGADA">Encargada</option>
             <option value="ADMIN">Administradora</option>
             {canAssignSupport && <option value="SOPORTE">Soporte</option>}
           </Select>

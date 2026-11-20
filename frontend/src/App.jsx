@@ -14,6 +14,7 @@ const UsersPage = lazy(() => import('@/features/users/UsersPage'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const GuardiansPage = lazy(() => import('@/features/guardians/GuardiansPage'));
 const DailyLogFormPage = lazy(() => import('@/features/daily-log/DailyLogFormPage'));
+const DailyReportsPage = lazy(() => import('@/features/daily-reports/DailyReportsPage'));
 const SupportPage = lazy(() => import('@/features/support/SupportPage'));
 const MedicationRoundsPage = lazy(() => import('@/features/medications/MedicationRoundsPage'));
 const PillboxPage = lazy(() => import('@/features/medications/PillboxPage'));
@@ -65,6 +66,10 @@ export default function App() {
                 <Route element={<RequireRole roles={[ROLES.ADMIN]} />}>
                   <Route path="usuarios" element={<UsersPage />} />
                   <Route path="apoderados" element={<GuardiansPage />} />
+                </Route>
+
+                <Route element={<RequireRole roles={[ROLES.ADMIN, ROLES.ENCARGADA]} />}>
+                  <Route path="reportes" element={<DailyReportsPage />} />
                 </Route>
 
                 <Route element={<RequireRole roles={[ROLES.SOPORTE]} />}>
