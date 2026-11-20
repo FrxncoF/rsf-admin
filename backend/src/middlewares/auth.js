@@ -4,7 +4,7 @@ import { AppError } from '../utils/AppError.js';
 import { findUserById, toPublicUser } from '../modules/users/users.service.js';
 import { isTokenRevoked } from '../modules/auth/auth.service.js';
 
-export const ROLES = Object.freeze({ ADMIN: 'ADMIN', CUIDADORA: 'CUIDADORA', SOPORTE: 'SOPORTE' });
+export const ROLES = Object.freeze({ ADMIN: 'ADMIN', ENCARGADA: 'ENCARGADA', CUIDADORA: 'CUIDADORA', SOPORTE: 'SOPORTE' });
 
 /** SOPORTE puede todo lo que puede un ADMIN. */
 export const hasAdminAccess = (user) => user?.role === ROLES.ADMIN || user?.role === ROLES.SOPORTE;
@@ -44,9 +44,12 @@ export async function verifyToken(req, _res, next) {
 /**
  * Uso: router.post('/', verifyToken, verifyRole(['ADMIN']), handler).
  * Donde se permite ADMIN también se permite SOPORTE.
+ * Donde se permite CUIDADORA también se permite ENCARGADA (cuidadora + Reportes Diarios).
  */
 export function verifyRole(allowedRoles) {
-  const allowed = allowedRoles.includes(ROLES.ADMIN) ? [...allowedRoles, ROLES.SOPORTE] : allowedRoles;
+  const allowed = [...allowedRoles];
+  if (allowed.includes(ROLES.ADMIN)) allowed.push(ROLES.SOPORTE);
+  if (allowed.includes(ROLES.CUIDADORA)) allowed.push(ROLES.ENCARGADA);
   return (req, _res, next) => {
     if (!req.user) throw AppError.unauthorized();
     if (!allowed.includes(req.user.role)) throw AppError.forbidden();

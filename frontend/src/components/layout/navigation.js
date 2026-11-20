@@ -1,4 +1,4 @@
-import { ClipboardList, Contact, DoorOpen, LifeBuoy, Pill, UserCog, Users } from 'lucide-react';
+import { ClipboardList, Contact, DoorOpen, FileText, LifeBuoy, Pill, UserCog, Users } from 'lucide-react';
 import { hasRole, ROLES } from '@/features/auth/AuthContext';
 
 // Ítems del sidebar. Agregar aquí los módulos de próximas fases.
@@ -6,6 +6,7 @@ export const NAV_ITEMS = [
   { to: '/residentes', label: 'Residentes', icon: Users, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/medicacion', label: 'Medicación', icon: Pill, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/pastillero', label: 'Pastillero', icon: ClipboardList, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
+  { to: '/reportes', label: 'Reportes Diarios', icon: FileText, roles: [ROLES.ADMIN, ROLES.ENCARGADA] },
   { to: '/apoderados', label: 'Apoderados', icon: Contact, roles: [ROLES.ADMIN] },
   { to: '/visitas', label: 'Visitas', icon: DoorOpen, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/usuarios', label: 'Usuarios', icon: UserCog, roles: [ROLES.ADMIN] },
@@ -16,6 +17,7 @@ export const navItemsFor = (role) => NAV_ITEMS.filter((item) => hasRole({ role }
 
 export const ROLE_LABELS = {
   [ROLES.ADMIN]: 'Administradora',
+  [ROLES.ENCARGADA]: 'Encargada',
   [ROLES.CUIDADORA]: 'Cuidadora',
   [ROLES.SOPORTE]: 'Soporte',
 };
