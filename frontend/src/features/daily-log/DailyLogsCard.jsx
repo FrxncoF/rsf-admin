@@ -89,6 +89,8 @@ export default function DailyLogsCard({ resident }) {
   );
 }
 
+const isNight = (log) => log.shift === 'NOCHE' && !log.legacy;
+
 const shiftLabel = (log) => (log.legacy ? `${formatTime(log.created_at)} hrs · formato anterior` : SHIFT_LABEL[log.shift]);
 
 function LogRow({ log, onOpen }) {
@@ -117,7 +119,13 @@ function LogRow({ log, onOpen }) {
         </span>
         <span className="flex flex-wrap items-center gap-x-2 text-sm text-slate-800">
           {mood && <span title={mood.label}>{mood.emoji}</span>}
-          {vitals ? <span className="tabular-nums">{vitals}</span> : !alerts && <span className="text-slate-500">Ficha registrada</span>}
+          {vitals ? (
+            <span className="tabular-nums">{vitals}</span>
+          ) : isNight(log) && d.notes ? (
+            <span className="line-clamp-2 text-slate-600">{d.notes}</span>
+          ) : (
+            !alerts && <span className="text-slate-500">Ficha registrada</span>
+          )}
         </span>
         {alerts && (
           <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-red-700">
@@ -153,7 +161,7 @@ function LogDialog({ log, canAddNote, onClose, onUpdated }) {
   }, [log?.id]);
 
   if (!log) return null;
-  const sections = summarize(log.data);
+  const sections = summarize(log.data, { night: isNight(log) });
 
   async function addNote(e) {
     e.preventDefault();

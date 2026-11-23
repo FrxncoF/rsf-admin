@@ -1,4 +1,4 @@
-import { AlertTriangle, Bath, HeartPulse, Plus, RotateCcw, Smile, Utensils, X } from 'lucide-react';
+import { AlertTriangle, Bath, HeartPulse, Moon, Plus, RotateCcw, Smile, Utensils, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   ALERTS,
@@ -317,44 +317,78 @@ export function WellbeingSection({ log, set }) {
         />
       </FieldGroup>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {SLEEP_SHIFTS.map((shift) => (
-          <FieldGroup key={shift.key} title={`Sueño · ${shift.label}`}>
-            <ChoiceGroup
-              label={shift.label}
-              options={SLEEP}
-              columns="grid-cols-2"
-              value={log.sleep[shift.key]}
-              onChange={(value) => set((l) => ({ sleep: { ...l.sleep, [shift.key]: value } }))}
-            />
-          </FieldGroup>
-        ))}
-      </div>
+      {/* El sueño de la noche ya no va aquí: lo cuenta el turno noche en su resumen */}
+      {SLEEP_SHIFTS.filter((shift) => shift.key === 'dia').map((shift) => (
+        <FieldGroup key={shift.key} title={`Sueño · ${shift.label}`}>
+          <ChoiceGroup
+            label={shift.label}
+            options={SLEEP}
+            columns="grid-cols-2 sm:grid-cols-4"
+            value={log.sleep[shift.key]}
+            onChange={(value) => set((l) => ({ sleep: { ...l.sleep, [shift.key]: value } }))}
+          />
+        </FieldGroup>
+      ))}
 
-      <FieldGroup title="Eventos y alertas">
-        <MultiChoice
-          label="Eventos"
-          options={ALERTS.map((a) => ({ ...a, tone: 'bad' }))}
-          values={log.alerts}
-          columns="grid-cols-2 sm:grid-cols-4"
-          onToggle={(value, on) =>
-            set((l) => ({ alerts: toggleIn(l.alerts, value, on), painLevel: value === 'dolor' && !on ? null : l.painLevel }))
-          }
-        />
-        {log.alerts.includes('dolor') && <PainScale value={log.painLevel} onChange={(n) => set({ painLevel: n })} />}
-      </FieldGroup>
+      <AlertsField log={log} set={set} />
 
-      <FieldGroup title="Observación (opcional)" aside={<span className="text-xs tabular-nums text-slate-400">{log.notes.length}/{NOTES_MAX}</span>}>
-        <textarea
-          rows={2}
-          maxLength={NOTES_MAX}
-          value={log.notes}
-          onChange={(e) => set({ notes: e.target.value })}
-          placeholder="Solo si es necesario. Ej: pidió hablar con su hija"
-          className="w-full resize-none rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
-        />
-      </FieldGroup>
+      <NotesField
+        log={log}
+        set={set}
+        title="Observación (opcional)"
+        rows={3}
+        placeholder="Solo si es necesario. Ej: pidió hablar con su hija"
+      />
     </FormSection>
+  );
+}
+
+/* ─────────────── Turno noche: solo alertas y resumen en texto ─────────────── */
+
+export function NightSection({ log, set }) {
+  return (
+    <FormSection id="night" icon={Moon} title="Resumen de la noche">
+      <AlertsField log={log} set={set} />
+      <NotesField
+        log={log}
+        set={set}
+        title="¿Cómo pasó la noche?"
+        rows={8}
+        placeholder="Ej: durmió bien toda la noche. Se levantó al baño a las 03:00 con ayuda, sin novedades."
+      />
+    </FormSection>
+  );
+}
+
+function AlertsField({ log, set }) {
+  return (
+    <FieldGroup title="Eventos y alertas">
+      <MultiChoice
+        label="Eventos"
+        options={ALERTS.map((a) => ({ ...a, tone: 'bad' }))}
+        values={log.alerts}
+        columns="grid-cols-2 sm:grid-cols-4"
+        onToggle={(value, on) =>
+          set((l) => ({ alerts: toggleIn(l.alerts, value, on), painLevel: value === 'dolor' && !on ? null : l.painLevel }))
+        }
+      />
+      {log.alerts.includes('dolor') && <PainScale value={log.painLevel} onChange={(n) => set({ painLevel: n })} />}
+    </FieldGroup>
+  );
+}
+
+function NotesField({ log, set, title, rows, placeholder }) {
+  return (
+    <FieldGroup title={title} aside={<span className="text-xs tabular-nums text-slate-400">{log.notes.length}/{NOTES_MAX}</span>}>
+      <textarea
+        rows={rows}
+        maxLength={NOTES_MAX}
+        value={log.notes}
+        onChange={(e) => set({ notes: e.target.value })}
+        placeholder={placeholder}
+        className="w-full resize-y rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-[15px] leading-relaxed text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30"
+      />
+    </FieldGroup>
   );
 }
 

@@ -47,6 +47,6 @@ export function addDays(iso, n) {
   return d.toISOString().slice(0, 10);
 }
 
-export const MAX_FAMILY_NOTE = 'Se recomienda un máximo de 3 familiares por visita.';
+export const MAX_FAMILY_NOTE = 'Se recomienda un máximo de 2 familiares por visita.';
 export const WARNING_NOTE =
   'Si detectamos que la visita no corresponde a un residente de tu contrato o familia, la reserva se cancelará automáticamente.';

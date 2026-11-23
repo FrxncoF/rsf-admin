@@ -10,7 +10,7 @@ import { MoodAvatar } from './MoodAvatar';
 import { moodByValue, SECTIONS } from './options';
 import { EMPTY_LOG, applyChanges, changesBetween, dayAndDate, formatTime, fromData, hasInvalidVitals, shortName } from './form';
 import { SHIFT_LABEL, dailyLogsApi } from './dailyLogsApi';
-import { HygieneSection, IntakeSection, SkinSection, VitalsSection, WellbeingSection } from './sections';
+import { HygieneSection, IntakeSection, NightSection, SkinSection, VitalsSection, WellbeingSection } from './sections';
 
 const AUTOSAVE_MS = 1200;
 const RETRY_MS = 5000;
@@ -144,6 +144,8 @@ export default function DailyLogFormPage() {
   const closed = status.state === 'closed';
   const invalid = hasInvalidVitals(log);
   const range = `${info.start.slice(11)}–${info.end.slice(11)}`;
+  // Turno noche: solo alertas y resumen en texto (las fichas antiguas se ven con el formulario completo)
+  const night = info.shift === 'NOCHE' && !info.legacy;
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
@@ -185,6 +187,7 @@ export default function DailyLogFormPage() {
           {info.contributors?.length > 0 && (
             <p className="mt-2 text-xs text-slate-500">Anotaron: {info.contributors.map((n) => shortName(n)).join(', ')}</p>
           )}
+          {!night && (
           <nav className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none]" aria-label="Secciones">
             {Object.entries(SECTIONS).map(([key, label]) => (
               <a
@@ -196,6 +199,7 @@ export default function DailyLogFormPage() {
               </a>
             ))}
           </nav>
+          )}
         </header>
 
         {closed && (
@@ -206,18 +210,24 @@ export default function DailyLogFormPage() {
         )}
 
         <fieldset disabled={closed} className={cn(closed && 'pointer-events-none opacity-60')}>
-          <VitalsSection log={log} set={set} />
-          <IntakeSection log={log} set={set} />
-          <HygieneSection log={log} set={set} />
-          <SkinSection log={log} set={set} />
-          <WellbeingSection log={log} set={set} />
+          {night ? (
+            <NightSection log={log} set={set} />
+          ) : (
+            <>
+              <VitalsSection log={log} set={set} />
+              <IntakeSection log={log} set={set} />
+              <HygieneSection log={log} set={set} />
+              <SkinSection log={log} set={set} />
+              <WellbeingSection log={log} set={set} />
+            </>
+          )}
         </fieldset>
 
         <footer className="sticky bottom-0 z-10 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur sm:px-6">
           <div className="flex items-center gap-3">
             <SaveStatus status={status} pending={pending} invalid={invalid} />
             <Button onClick={finish} loading={leaving} className="ml-auto">
-              <Check className="size-4" /> Listo
+              <Check className="size-4" /> Guardar
             </Button>
           </div>
         </footer>
@@ -248,10 +258,10 @@ function SaveStatus({ status, pending, invalid }) {
         <span className="font-medium text-amber-700">Corrige los signos vitales fuera de rango (no se guardan así).</span>
       ) : status.state === 'saved' ? (
         <span className="flex items-center gap-1.5 text-accent-700">
-          <Check className="size-4" /> Guardado {formatTime(status.at)} · se guarda solo
+          <Check className="size-4" /> Guardado {formatTime(status.at)}
         </span>
       ) : (
-        'Completa lo que corresponda: cada dato se guarda solo.'
+        'Completa lo que corresponda y presiona Guardar.'
       )}
     </p>
   );

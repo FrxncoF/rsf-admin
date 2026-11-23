@@ -117,6 +117,7 @@ export const SLEEP = [
   { value: 'agitado', label: 'Agitado', emoji: '😣', tone: 'bad' },
 ];
 
+// "noche" ya no se pregunta (el turno noche escribe un resumen); se mantiene para mostrar fichas antiguas
 export const SLEEP_SHIFTS = [
   { key: 'noche', label: 'Turno noche' },
   { key: 'dia', label: 'Siesta / turno día' },
@@ -129,7 +130,8 @@ export const ALERTS = [
   { value: 'fiebre', label: 'Fiebre', emoji: '🌡️', critical: true },
 ];
 
-export const NOTES_MAX = 150;
+// Observación del turno día / resumen del turno noche (mismo campo `notes`)
+export const NOTES_MAX = 1000;
 
 /**
  * Signos vitales. `min`/`max` = límites duros (evitan errores de tipeo);
