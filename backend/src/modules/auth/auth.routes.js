@@ -99,6 +99,12 @@ authRouter.get('/me', verifyToken, (req, res) => {
   res.json({ user: req.user });
 });
 
+// Aviso de "sigo conectado" que manda la app cada minuto mientras está en pantalla
+// (verifyToken registra la presencia). No devuelve nada.
+authRouter.post('/ping', verifyToken, (_req, res) => {
+  res.status(204).end();
+});
+
 authRouter.patch('/me', profileLimiter, verifyToken, async (req, res) => {
   const changes = parse(updateProfileSchema, req.body);
   const user = await updateOwnProfile(req.user, changes);

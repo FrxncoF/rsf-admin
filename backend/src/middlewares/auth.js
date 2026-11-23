@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
+import { query } from '../db/pool.js';
 import { AppError } from '../utils/AppError.js';
 import { findUserById, toPublicUser } from '../modules/users/users.service.js';
 import { isTokenRevoked } from '../modules/auth/auth.service.js';
@@ -38,7 +39,26 @@ export async function verifyToken(req, _res, next) {
   }
 
   req.user = toPublicUser(user);
+  touchPresence(user.id);
   next();
+}
+
+// ---------------------------------------------------------------------
+// Presencia: "última vez visto" por usuario (Soporte → Estado)
+// ---------------------------------------------------------------------
+const PRESENCE_EVERY_MS = 60_000;
+const lastTouch = new Map(); // userId → ms de la última escritura (evita escribir en cada solicitud)
+
+/** Sobrescribe la última actividad del usuario, como máximo una vez por minuto. No bloquea la respuesta. */
+function touchPresence(userId) {
+  const now = Date.now();
+  if (now - (lastTouch.get(userId) ?? 0) < PRESENCE_EVERY_MS) return;
+  lastTouch.set(userId, now);
+  query(
+    `INSERT INTO user_presence (user_id, last_seen_at) VALUES ($1, now())
+     ON CONFLICT (user_id) DO UPDATE SET last_seen_at = now()`,
+    [userId],
+  ).catch(() => lastTouch.delete(userId));
 }
 
 /**

@@ -35,8 +35,25 @@ async function dirSize(dir) {
 
 const readBuildDate = () => fs.readFile(path.join(APP_ROOT, 'BUILD_DATE'), 'utf8').then((s) => s.trim(), () => null);
 
+// Conectado = tuvo actividad en los últimos 3 minutos (la app avisa cada minuto)
+const ONLINE_MINUTES = 3;
+
+/** Cuentas activas con su última actividad; las conectadas primero. */
+async function getPresence() {
+  const { rows } = await query(
+    `SELECT u.id, u.full_name, u.role, p.last_seen_at,
+            COALESCE(p.last_seen_at > now() - make_interval(mins => $1), false) AS online
+       FROM users u
+       LEFT JOIN user_presence p ON p.user_id = u.id
+      WHERE u.is_active
+      ORDER BY p.last_seen_at DESC NULLS LAST, u.full_name`,
+    [ONLINE_MINUTES],
+  );
+  return rows;
+}
+
 export async function getStatus() {
-  const [files, applied, dbSize, counts, photos, backups, buildDate] = await Promise.all([
+  const [files, applied, dbSize, counts, photos, backups, buildDate, presence] = await Promise.all([
     fs.readdir(MIGRATIONS_DIR).then((f) => f.filter((n) => /^\d+_.+\.sql$/.test(n)).sort()),
     query('SELECT name, applied_at FROM schema_migrations ORDER BY name').then((r) => r.rows),
     query('SELECT pg_database_size(current_database())::bigint AS bytes, version() AS version').then((r) => r.rows[0]),
@@ -49,6 +66,7 @@ export async function getStatus() {
     dirSize(env.uploadDir),
     listBackups(),
     readBuildDate(),
+    getPresence(),
   ]);
 
   const appliedNames = new Set(applied.map((m) => m.name));
@@ -74,7 +92,8 @@ export async function getStatus() {
     },
     backups: { last: backups[0] ?? null, count: backups.length, keep: env.backupKeep },
     uf: getUfStatus(),
-    counts,
+    counts: { ...counts, online_users: presence.filter((u) => u.online).length },
+    presence,
   };
 }
 

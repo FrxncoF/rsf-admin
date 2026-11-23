@@ -14,6 +14,7 @@ export const hasRole = (user, roles) =>
     (user.role === ROLES.ENCARGADA && roles.includes(ROLES.CUIDADORA)));
 
 const AuthContext = createContext(null);
+const PING_MS = 60_000;
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -30,6 +31,19 @@ export function AuthProvider({ children }) {
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
+
+  // "Sigo conectado": cada minuto mientras la app está en pantalla (Soporte → Estado → Conectados)
+  const loggedIn = Boolean(user);
+  useEffect(() => {
+    if (!loggedIn) return;
+    const ping = () => document.visibilityState === 'visible' && api.post('/auth/ping').catch(() => {});
+    const id = setInterval(ping, PING_MS);
+    document.addEventListener('visibilitychange', ping);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', ping);
+    };
+  }, [loggedIn]);
 
   const login = useCallback(async (email, password) => {
     const { user } = await api.post('/auth/login', { email, password });
