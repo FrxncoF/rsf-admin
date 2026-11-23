@@ -36,7 +36,7 @@ export function describeVitals(v = {}) {
  * Ficha guardada → secciones con solo los datos registrados, para la vista de lectura.
  * tone: 'good' | 'neutral' | 'warn' | 'bad' (colorea el valor).
  */
-export function summarize(d) {
+export function summarize(d, { night = false } = {}) {
   const sections = [];
   const add = (key, items) => {
     const filled = items.filter(Boolean);
@@ -102,7 +102,7 @@ export function summarize(d) {
       value: d.alerts.map((a) => (a === 'dolor' && d.painLevel ? `Dolor ${d.painLevel}/10` : labelOf(ALERTS, a))).join(', '),
       tone: 'bad',
     },
-    d.notes && { label: 'Observación', value: d.notes, wide: true },
+    d.notes && { label: night ? 'Resumen de la noche' : 'Observación', value: d.notes, wide: true },
   ]);
 
   return sections;

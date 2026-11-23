@@ -50,7 +50,8 @@ const dataSchema = z.object({
   sleep: z.object({ noche: choice(SLEEP), dia: choice(SLEEP) }).default({}),
   alerts: many(ALERTS),
   painLevel: z.number().int().min(1).max(10).nullable().default(null),
-  notes: z.string().trim().max(150).default(''),
+  // Observación del turno día / resumen del turno noche
+  notes: z.string().trim().max(1000, 'Máximo 1000 caracteres').default(''),
 });
 
 // Consistencia: sin evacuación no hay Bristol; sin dolor no hay intensidad; sin lesión no hay zona
