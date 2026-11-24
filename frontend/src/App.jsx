@@ -62,14 +62,12 @@ export default function App() {
                 <Route path="visitas" element={<BookingsPage />} />
                 <Route path="reservas" element={<Navigate to="/visitas" replace />} />
                 <Route path="configuracion" element={<SettingsPage />} />
+                {/* Todos los roles; a las cuidadoras la API solo les entrega el reporte del turno noche */}
+                <Route path="reportes" element={<DailyReportsPage />} />
 
                 <Route element={<RequireRole roles={[ROLES.ADMIN]} />}>
                   <Route path="usuarios" element={<UsersPage />} />
                   <Route path="apoderados" element={<GuardiansPage />} />
-                </Route>
-
-                <Route element={<RequireRole roles={[ROLES.ADMIN, ROLES.ENCARGADA]} />}>
-                  <Route path="reportes" element={<DailyReportsPage />} />
                 </Route>
 
                 <Route element={<RequireRole roles={[ROLES.SOPORTE]} />}>

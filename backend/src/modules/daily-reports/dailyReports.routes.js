@@ -6,8 +6,10 @@ import * as reports from './dailyReports.service.js';
 
 export const dailyReportsRouter = Router();
 
-// Reportes Diarios: resumen general del día por sede y área. Solo ENCARGADA y ADMIN (y SOPORTE).
-dailyReportsRouter.use(verifyToken, verifyRole([ROLES.ADMIN, ROLES.ENCARGADA]));
+// Reportes Diarios: resumen general del día por sede y área. ENCARGADA y ADMIN (y SOPORTE) ven todas
+// las áreas; CUIDADORA solo el reporte del turno noche (se filtra en el servicio).
+// verifyRole([CUIDADORA]) también deja pasar a ENCARGADA.
+dailyReportsRouter.use(verifyToken, verifyRole([ROLES.ADMIN, ROLES.CUIDADORA]));
 
 dailyReportsRouter.get('/', async (req, res) => {
   res.json(await reports.listReports(parse(listQuerySchema, req.query), req.user));

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 // Áreas (deben coincidir con frontend/src/features/daily-reports/areas.js)
-export const AREAS = ['KINESIOLOGIA', 'TERAPIA_OCUPACIONAL', 'ENFERMERIA', 'ENCARGADA_TURNO'];
+export const AREAS = ['KINESIOLOGIA', 'TERAPIA_OCUPACIONAL', 'ENFERMERIA', 'ENCARGADA_TURNO', 'TURNO_NOCHE'];
+// Única área que ven y escriben las cuidadoras; su fecha es la del día en que empieza la noche
+export const NIGHT_AREA = 'TURNO_NOCHE';
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida');
 const area = z.enum(AREAS, { message: 'Área inválida' });

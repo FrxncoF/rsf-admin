@@ -8,7 +8,7 @@ import { Alert, EmptyState, Spinner } from '@/components/ui/Feedback';
 import { useAuth } from '@/features/auth/AuthContext';
 import { useSites } from '@/features/sites/SiteContext';
 import { cn } from '@/lib/utils';
-import { AREAS, areaOf, dailyReportsApi } from './areas';
+import { AREAS, NIGHT_AREA, areaOf, dailyReportsApi, openDateFor } from './areas';
 import { MentionText, MentionTextarea } from './MentionTextarea';
 
 const ALL = 'ALL';
@@ -24,16 +24,17 @@ function formatDate(isoDate) {
 const formatTime = (stamp) => new Intl.DateTimeFormat('es-CL', { hour: '2-digit', minute: '2-digit' }).format(new Date(stamp));
 
 /**
- * Reportes Diarios: un resumen general del día por sede y área (Kinesiología, Terapia
- * Ocupacional, Enfermería, Encargada de turno). Solo Encargadas y Administradoras.
- * Quien lo escribe puede corregirlo el mismo día; después queda cerrado (salvo para Admin).
+ * Reportes Diarios: un resumen general por sede y área (Kinesiología, Terapia Ocupacional,
+ * Enfermería, Encargada de turno, Turno noche). Encargadas y Administradoras ven todas las áreas;
+ * las cuidadoras solo el Turno noche (la API decide y avisa con `night_only`).
+ * Quien lo escribe puede corregirlo mientras su día (o su noche) siga abierto; Admin siempre.
  */
 export default function DailyReportsPage() {
   const { isAdmin } = useAuth();
   const { sites, siteId, currentSite } = useSites();
-  const [date, setDate] = useState(''); // '' = hoy (lo decide el servidor, hora de Chile)
+  const [date, setDate] = useState(''); // '' = fecha por defecto (la decide el servidor, hora de Chile)
   const [area, setArea] = useState(ALL);
-  const [state, setState] = useState({ data: [], date: null, today: null, loading: true, error: '' });
+  const [state, setState] = useState({ data: [], date: null, today: null, night_date: null, night_only: false, loading: true, error: '' });
   const [dialog, setDialog] = useState(null); // { report } o { area } para uno nuevo
 
   const load = useCallback(() => {
@@ -46,7 +47,14 @@ export default function DailyReportsPage() {
 
   useEffect(() => load(), [load]);
 
-  const isToday = state.date && state.date === state.today;
+  const nightOnly = state.night_only;
+  const myAreas = nightOnly ? AREAS.filter((a) => a.value === NIGHT_AREA) : AREAS;
+  const defaultDate = nightOnly ? state.last_night : state.today;
+  const maxDate = state.today ?? undefined;
+  // Áreas que todavía se pueden escribir en la fecha que se está viendo
+  const writableAreas = state.date ? myAreas.filter((a) => openDateFor(a.value, state) === state.date) : [];
+  const isOpenDay = writableAreas.length > 0;
+
   const visible = area === ALL ? state.data : state.data.filter((r) => r.area === area);
   const counts = useMemo(() => {
     const map = {};
@@ -54,9 +62,8 @@ export default function DailyReportsPage() {
     return map;
   }, [state.data]);
 
-  // Con una sede elegida y viendo hoy, se muestran las áreas que aún no tienen reporte
-  const missing =
-    isToday && siteId ? AREAS.filter((a) => !counts[a.value] && (area === ALL || area === a.value)) : [];
+  // Con una sede elegida, se muestran las áreas abiertas que aún no tienen reporte
+  const missing = siteId ? writableAreas.filter((a) => !counts[a.value] && (area === ALL || area === a.value)) : [];
 
   const onSaved = (saved) => {
     setDialog(null);
@@ -70,9 +77,10 @@ export default function DailyReportsPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Reportes Diarios</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">{nightOnly ? 'Reporte turno noche' : 'Reportes Diarios'}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {state.date ? formatDate(state.date) : '…'} · {currentSite ? `Sede ${currentSite.name}` : 'Todas las sedes'}
+            {state.date ? `${nightOnly ? 'Noche del ' : ''}${formatDate(state.date)}` : '…'} ·{' '}
+            {currentSite ? `Sede ${currentSite.name}` : 'Todas las sedes'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -80,19 +88,24 @@ export default function DailyReportsPage() {
             type="date"
             aria-label="Día"
             value={date || state.date || ''}
-            max={state.today ?? undefined}
-            onChange={(e) => setDate(e.target.value === state.today ? '' : e.target.value)}
+            max={maxDate}
+            onChange={(e) => setDate(e.target.value === defaultDate ? '' : e.target.value)}
             className="w-auto"
           />
-          {isToday && (
-            <Button onClick={() => setDialog({ area: area === ALL ? '' : area })}>
+          {isOpenDay && (
+            <Button
+              onClick={() =>
+                setDialog({ area: writableAreas.length === 1 ? writableAreas[0].value : area === ALL ? '' : area })
+              }
+            >
               <Plus className="size-4" /> Nuevo
             </Button>
           )}
         </div>
       </div>
 
-      {/* Filtro por área */}
+      {/* Filtro por área (las cuidadoras solo tienen una) */}
+      {!nightOnly && (
       <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
         <div className="flex gap-2">
           {[{ value: ALL, label: 'Todas' }, ...AREAS].map((a) => {
@@ -116,8 +129,16 @@ export default function DailyReportsPage() {
           })}
         </div>
       </div>
+      )}
 
       <Alert>{state.error}</Alert>
+
+      {/* Mismo horario que la ficha nocturna: se abre al inicio del turno noche (Soporte → Turnos) */}
+      {state.date && !state.night_date && state.night_opens_at && (nightOnly || (state.date === state.today && (area === ALL || area === NIGHT_AREA))) && (
+        <p className="rounded-xl bg-indigo-50 px-4 py-3 text-sm text-indigo-900 ring-1 ring-indigo-100">
+          El reporte del <strong>turno noche</strong> se puede escribir desde las <strong>{state.night_opens_at.slice(11)}</strong>.
+        </p>
+      )}
 
       {state.loading && !state.date ? (
         <div className="flex justify-center py-16">
@@ -129,11 +150,13 @@ export default function DailyReportsPage() {
             icon={FileText}
             title="Sin reportes"
             description={
-              isToday
+              isOpenDay
                 ? siteId
-                  ? 'Todavía no hay reportes para hoy.'
-                  : 'Todavía no hay reportes para hoy. Elige una sede arriba para ver qué áreas faltan.'
-                : 'No se escribieron reportes ese día.'
+                  ? 'Todavía no hay reportes.'
+                  : 'Todavía no hay reportes. Elige una sede arriba para ver cuáles faltan.'
+                : nightOnly
+                  ? 'No se escribió reporte esa noche.'
+                  : 'No se escribieron reportes ese día.'
             }
           />
         </Card>
@@ -144,7 +167,7 @@ export default function DailyReportsPage() {
               key={report.id}
               report={report}
               showSite={!siteId}
-              isToday={isToday}
+              isOpen={openDateFor(report.area, state) === report.report_date}
               onEdit={() => setDialog({ report })}
             />
           ))}
@@ -157,7 +180,7 @@ export default function DailyReportsPage() {
             >
               <span className="flex items-center gap-2">
                 <AreaBadge area={a.value} />
-                <span className="text-sm text-slate-500">Sin reporte hoy</span>
+                <span className="text-sm text-slate-500">{a.value === NIGHT_AREA ? 'Sin reporte esta noche' : 'Sin reporte hoy'}</span>
               </span>
               <span className="flex items-center gap-1 text-sm font-medium text-brand-700">
                 <Plus className="size-4" /> Escribir
@@ -171,6 +194,15 @@ export default function DailyReportsPage() {
         open={Boolean(dialog)}
         report={dialog?.report}
         initialArea={dialog?.area ?? ''}
+        areaOptions={
+          !dialog?.report
+            ? writableAreas
+            : isAdmin
+              ? AREAS
+              : // Sin cambiar entre la noche y un área de día (moverían la fecha)
+                myAreas.filter((a) => (a.value === NIGHT_AREA) === (dialog.report.area === NIGHT_AREA))
+        }
+        nightClosesAt={state.night_closes_at}
         sites={sites}
         siteId={siteId}
         isAdmin={isAdmin}
@@ -190,7 +222,7 @@ function AreaBadge({ area }) {
   );
 }
 
-function ReportCard({ report, showSite, isToday, onEdit }) {
+function ReportCard({ report, showSite, isOpen, onEdit }) {
   const edited = report.updated_by_name && new Date(report.updated_at) - new Date(report.created_at) > 60_000;
   return (
     <Card className="p-4 sm:p-5">
@@ -204,7 +236,7 @@ function ReportCard({ report, showSite, isToday, onEdit }) {
             <Pencil className="size-4" /> Editar
           </Button>
         ) : (
-          !isToday && (
+          !isOpen && (
             <span className="flex items-center gap-1 text-xs text-slate-400" title="Solo una administradora puede modificarlo">
               <Lock className="size-3.5" /> Cerrado
             </span>
@@ -227,7 +259,7 @@ function ReportCard({ report, showSite, isToday, onEdit }) {
   );
 }
 
-function ReportDialog({ open, report, initialArea, sites, siteId, isAdmin, onClose, onSaved }) {
+function ReportDialog({ open, report, initialArea, areaOptions, nightClosesAt, sites, siteId, isAdmin, onClose, onSaved }) {
   const formId = useId();
   const isEdit = Boolean(report);
   const [values, setValues] = useState({ site_id: '', area: '', body: '' });
@@ -240,11 +272,19 @@ function ReportDialog({ open, report, initialArea, sites, siteId, isAdmin, onClo
     setValues(
       report
         ? { site_id: String(report.site_id), area: report.area, body: report.body }
-        : { site_id: siteId ? String(siteId) : sites.length === 1 ? String(sites[0].id) : '', area: initialArea, body: '' },
+        : {
+            site_id: siteId ? String(siteId) : sites.length === 1 ? String(sites[0].id) : '',
+            area: areaOptions.some((a) => a.value === initialArea) ? initialArea : areaOptions.length === 1 ? areaOptions[0].value : '',
+            body: '',
+          },
     );
     setErrors({});
     setServerError('');
+    // areaOptions se recalcula en cada render del padre: solo importa al abrir
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, report, initialArea, siteId, sites]);
+
+  const night = values.area === NIGHT_AREA;
 
   const set = (key) => (e) => setValues((v) => ({ ...v, [key]: e.target.value }));
 
@@ -273,13 +313,13 @@ function ReportDialog({ open, report, initialArea, sites, siteId, isAdmin, onClo
       open={open}
       onClose={onClose}
       className="sm:max-w-2xl"
-      title={isEdit ? 'Editar reporte' : 'Nuevo reporte del día'}
+      title={isEdit ? 'Editar reporte' : night ? 'Reporte del turno noche' : 'Nuevo reporte del día'}
       description={
-        isEdit && !isAdmin
-          ? 'Puedes corregirlo hasta las 23:59 de hoy. Después queda cerrado.'
-          : !isEdit
-            ? 'Resumen general del día. Puedes corregirlo hasta las 23:59 de hoy.'
-            : undefined
+        isEdit && isAdmin
+          ? undefined
+          : night
+            ? `Resumen general de la noche. Puedes corregirlo hasta las ${nightClosesAt?.slice(11) ?? 'el fin del turno noche'}.`
+            : 'Resumen general del día. Puedes corregirlo hasta las 23:59 de hoy.'
       }
       footer={
         <>
@@ -310,17 +350,21 @@ function ReportDialog({ open, report, initialArea, sites, siteId, isAdmin, onClo
             )}
           </Field>
           <Field label="Área" htmlFor="dr_area" error={errors.area}>
-            <Select id="dr_area" required value={values.area} onChange={set('area')}>
-              <option value="">Elige un área</option>
-              {AREAS.map((a) => (
-                <option key={a.value} value={a.value}>
-                  {a.label}
-                </option>
-              ))}
-            </Select>
+            {areaOptions.length === 1 ? (
+              <Input id="dr_area" value={areaOptions[0].label} disabled />
+            ) : (
+              <Select id="dr_area" required value={values.area} onChange={set('area')}>
+                <option value="">Elige un área</option>
+                {areaOptions.map((a) => (
+                  <option key={a.value} value={a.value}>
+                    {a.label}
+                  </option>
+                ))}
+              </Select>
+            )}
           </Field>
         </div>
-        <Field label="Resumen del día" htmlFor="dr_body" error={errors.body} hint={`${values.body.length.toLocaleString('es-CL')} / 10.000`}>
+        <Field label={night ? 'Resumen de la noche' : 'Resumen del día'} htmlFor="dr_body" error={errors.body} hint={`${values.body.length.toLocaleString('es-CL')} / 10.000`}>
           <MentionTextarea
             id="dr_body"
             rows={14}
@@ -329,7 +373,11 @@ function ReportDialog({ open, report, initialArea, sites, siteId, isAdmin, onClo
             value={values.body}
             onChange={(body) => setValues((v) => ({ ...v, body }))}
             siteId={values.site_id ? Number(values.site_id) : null}
-            placeholder="¿Cómo estuvo el día? Actividades, novedades, pendientes para el próximo turno… Escribe @ para nombrar a un residente."
+            placeholder={
+              night
+                ? '¿Cómo estuvo la noche? Novedades, residentes que no durmieron bien, pendientes para el turno día… Escribe @ para nombrar a un residente.'
+                : '¿Cómo estuvo el día? Actividades, novedades, pendientes para el próximo turno… Escribe @ para nombrar a un residente.'
+            }
           />
         </Field>
       </form>
