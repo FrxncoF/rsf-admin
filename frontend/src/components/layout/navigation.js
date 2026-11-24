@@ -6,7 +6,8 @@ export const NAV_ITEMS = [
   { to: '/residentes', label: 'Residentes', icon: Users, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/medicacion', label: 'Medicación', icon: Pill, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/pastillero', label: 'Pastillero', icon: ClipboardList, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
-  { to: '/reportes', label: 'Reportes Diarios', icon: FileText, roles: [ROLES.ADMIN, ROLES.ENCARGADA] },
+  // Cuidadoras: solo el reporte del turno noche (ENCARGADA entra por CUIDADORA y ve todas las áreas)
+  { to: '/reportes', label: 'Reportes Diarios', icon: FileText, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/apoderados', label: 'Apoderados', icon: Contact, roles: [ROLES.ADMIN] },
   { to: '/visitas', label: 'Visitas', icon: DoorOpen, roles: [ROLES.ADMIN, ROLES.CUIDADORA] },
   { to: '/usuarios', label: 'Usuarios', icon: UserCog, roles: [ROLES.ADMIN] },
